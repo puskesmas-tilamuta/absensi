@@ -292,6 +292,17 @@
       <div id="eventInfo"></div>
       <div id="cardEventAbsen"></div>
     </div>
+
+    <!-- PENGAJUAN DIRI CARD -->
+    <div class="card" id="cardPengajuan" style="display:none;border:1px dashed var(--border)">
+      <div class="card-title">📋 Ajukan Penugasan</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:12px">Ajukan diri untuk jaga malam, posyandu, atau event. Memerlukan persetujuan admin.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-sm btn-secondary" onclick="openPengajuanModal('jaga')">🌙 Ajukan Jaga Malam</button>
+        <button class="btn btn-sm btn-secondary" onclick="openPengajuanModal('posyandu')">🤱 Ajukan Tugas Posyandu</button>
+        <button class="btn btn-sm btn-secondary" onclick="openPengajuanModal('event')">🎯 Ajukan Ikut Event</button>
+      </div>
+    </div>
   </div>
 
   <!-- REKAP -->
@@ -325,6 +336,10 @@
         <div class="stat-card"><div class="stat-num" id="statTerlambat" style="color:var(--yellow)">0</div><div class="stat-label">Terlambat</div></div>
         <div class="stat-card"><div class="stat-num" id="statBelum" style="color:var(--red)">0</div><div class="stat-label">Belum Absen</div></div>
         <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total Petugas</div></div>
+      </div>
+      <div class="card" id="pendingPengajuanCard" style="display:none;border:2px solid #8b5cf6;margin-bottom:12px">
+        <div class="card-title" style="color:#5b21b6">📋 Pengajuan Penugasan Petugas<span id="pengajuanBadge" style="font-size:.6rem;background:#8b5cf6;color:#fff;border-radius:8px;padding:1px 6px;margin-left:6px;display:none"></span></div>
+        <div id="pendingPengajuanList"></div>
       </div>
       <div class="card" id="pendingVerifCard" style="display:none;border:2px solid var(--yellow)">
         <div class="card-title" style="color:#b45309">⏳ Menunggu Verifikasi Manual</div>
@@ -429,6 +444,14 @@
           <select id="rbPetugasFilter">
             <option value="">— Semua Petugas —</option>
           </select>
+        </div>
+        <div class="input-group">
+          <label>Nama Kepala Puskesmas</label>
+          <input type="text" id="rbKepala" placeholder="Yuningsih Pahrun, SKM"/>
+        </div>
+        <div class="input-group">
+          <label>Pangkat / Golongan &amp; NIP <span style="font-weight:400;color:var(--muted)">(tiap baris terpisah)</span></label>
+          <textarea id="rbKepalaDetail" rows="2" placeholder="Penata Tkt I, III/D&#10;NIP. 19760625 200312 2 008"></textarea>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary btn-sm" onclick="renderRekapBulanan()" style="flex:1">🔍 Tampilkan</button>
@@ -561,6 +584,18 @@
 
 </main>
 
+<!-- MODAL: PENGAJUAN DIRI -->
+<div class="modal-bg" id="pengajuanModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="pengajuanTitle">📋 Ajukan Penugasan</div>
+    <div id="pengajuanFields"></div>
+    <div id="pengajuanAlert"></div>
+    <button class="btn btn-primary" onclick="doSubmitPengajuan()" style="margin-bottom:10px">📨 Kirim Pengajuan</button>
+    <button class="btn btn-secondary" onclick="closeModal('pengajuanModal')">Batal</button>
+  </div>
+</div>
+
 <nav id="mainNav" style="display:none">
   <div class="nav-inner">
     <button class="nav-btn active" id="nav-beranda" onclick="showPage('beranda')">
@@ -613,12 +648,21 @@
       <select id="uRole">
         <option>Kepala Puskesmas</option>
         <option>Penanggung Jawab Klaster Manajemen</option>
-        <option>Dokter</option><option>Dokter Internship</option><option>Perawat</option><option>Bidan</option>
-        <option>Apoteker</option><option>Tenaga Laboratorium</option>
-        <option>Tenaga Kefarmasian</option>
+        <option>Administrasi</option>
+        <option>Apoteker</option>
+        <option>Bidan</option>
+        <option>Cleaning Service</option>
+        <option>Dokter</option>
+        <option>Dokter Gigi</option>
+        <option>Dokter Internship</option>
         <option>Kesehatan Masyarakat</option>
-        <option>Sanitarian</option><option>Nutrisionis</option>
-        <option>Administrasi</option><option>Cleaning Service</option><option>Lainnya</option>
+        <option>Nutrisionis</option>
+        <option>Perawat</option>
+        <option>Sanitarian</option>
+        <option>Sopir</option>
+        <option>Tenaga Kefarmasian</option>
+        <option>Tenaga Laboratorium</option>
+        <option>Lainnya</option>
       </select>
     </div>
     <div class="input-group"><label>Unit Kerja</label><input type="text" id="uUnit" placeholder="Poli Umum, Poli KIA, dll"/></div>
@@ -858,6 +902,8 @@ let MANUAL_ABSEN    = LS.get('eab_manual',  []); // [{id,uid,tanggal,tipe,refId,
 const savePosyandu  = ()=> LS.set('eab_posyandu', POSYANDU_LIST);
 const saveEvent     = ()=> LS.set('eab_events',   EVENT_LIST);
 const savePenugasanPy=()=> LS.set('eab_penugas_py',PENUGASAN_PY);
+let PENGAJUAN_LIST  = LS.get('eab_pengajuan', []); // [{id,uid,tipe,refId,tanggal,jamMasuk,jamSelesai,keterangan,status}]
+const savePengajuan = ()=> LS.set('eab_pengajuan', PENGAJUAN_LIST);
 const saveManual    = ()=> LS.set('eab_manual',   MANUAL_ABSEN);
 const savePustu     = ()=> LS.set('eab_pustu',  PUSTU_LIST);
 const saveJadwal    = ()=> LS.set('eab_jadwal', JADWAL_JAGA);
@@ -1001,6 +1047,9 @@ function renderBeranda(){
   // Show SA edit jam button
   const saBar=document.getElementById('saEditJamBar');
   if(saBar) saBar.style.display=sa?'block':'none';
+  // Show pengajuan card for non-admin
+  const cardPengajuan=document.getElementById('cardPengajuan');
+  if(cardPengajuan) cardPengajuan.style.display=(!u.isAdmin&&!sa)?'block':'none';
   // Check jaga malam jadwal today
   const today=todayKey();
   const jadwalHariIni=JADWAL_JAGA.find(j=>j.uid===u.id&&j.tanggal===today);
@@ -1554,6 +1603,13 @@ function initRekapBulanan(){
   const now=new Date();
   document.getElementById('rbBulan').value=now.getMonth();
   document.getElementById('rbTahun').value=now.getFullYear();
+  // Auto-fill from jurnal kepala if available
+  const rbK=document.getElementById('rbKepala');
+  const rbKD=document.getElementById('rbKepalaDetail');
+  const jK=document.getElementById('jurnalKepala');
+  const jKD=document.getElementById('jurnalKepalaDetail');
+  if(rbK&&!rbK.value&&jK&&jK.value) rbK.value=jK.value;
+  if(rbKD&&!rbKD.value&&jKD&&jKD.value) rbKD.value=jKD.value;
   // Populate petugas filter
   const sel=document.getElementById('rbPetugasFilter');
   sel.innerHTML='<option value="">— Semua Petugas —</option>';
@@ -1706,11 +1762,30 @@ function exportRekapBulananPDF(){
       // Signature
       const sigY=fy+10;
       const sigX=pw-55;
+      const rbKepala=(document.getElementById('rbKepala')?.value||'').trim();
+      const rbKepalaDetail=(document.getElementById('rbKepalaDetail')?.value||'').trim();
       doc.setFont('helvetica','normal');
       doc.setFontSize(9);
       doc.text('Mengetahui,',sigX,sigY,{align:'center'});
       doc.setFont('helvetica','bold');
       doc.text('KEPALA PUSKESMAS,',sigX,sigY+5,{align:'center'});
+      // Signature space + name
+      let sigNameY=sigY+26;
+      if(rbKepala){
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(9);
+        doc.text(rbKepala,sigX,sigNameY,{align:'center'});
+        const nw=doc.getTextWidth(rbKepala);
+        doc.setLineWidth(0.3);
+        doc.line(sigX-nw/2,sigNameY+1,sigX+nw/2,sigNameY+1);
+        sigNameY+=5;
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(8);
+        rbKepalaDetail.split('\n').filter(l=>l.trim()).forEach(l=>{
+          doc.text(l.trim(),sigX,sigNameY,{align:'center'});
+          sigNameY+=4.5;
+        });
+      }
 
       doc.save(`Rekap_Kehadiran_${bulanTahun.replace(/\s/g,'_')}.pdf`);
     });
@@ -1727,13 +1802,14 @@ function renderAdmin(){
   document.getElementById('statTerlambat').textContent=recs.filter(a=>a.masuk?.status==='terlambat').length;
   document.getElementById('statBelum').textContent=Math.max(0,USERS.filter(u=>!u.isAdmin).length - recs.filter(a=>a.masuk).length);
   document.getElementById('statTotal').textContent=USERS.filter(u=>!u.isAdmin).length;
+  const pengajuanCount=PENGAJUAN_LIST.filter(p=>p.status==='pending').length;
   const pendingCount=MANUAL_ABSEN.filter(m=>m.status==='pending').length;
-  const pendingBadge=document.getElementById('pendingBadge');
-  if(pendingBadge){
-    pendingBadge.textContent=pendingCount>0?` (${pendingCount} menunggu)`:'';
-    pendingBadge.style.display=pendingCount>0?'inline':'none';
-  }
+  const totalPending=pendingCount+pengajuanCount;
+  const pendingBadgeTab=document.getElementById('pendingBadge');
+  if(pendingBadgeTab){pendingBadgeTab.textContent=totalPending>0?` (${totalPending})`:'';pendingBadgeTab.style.display=totalPending>0?'inline':'none';}
+
   renderPendingVerif();
+  renderPendingPengajuan();
   const list=document.getElementById('adminList');
   const allPetugas=USERS.filter(u=>!u.isAdmin);
   if(!allPetugas.length){list.innerHTML=`<div class="empty-state"><p>Belum ada petugas.</p></div>`;return;}
@@ -2751,6 +2827,153 @@ function doVerifikasiAbsen(approved){
   closeModal('verifikasiModal');
   renderAdmin();
   renderPendingVerif();
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// PENGAJUAN DIRI (Petugas → Admin approve)
+// ═══════════════════════════════════════════════════════════
+let _pengajuanTipe = '';
+
+function openPengajuanModal(tipe){
+  _pengajuanTipe = tipe;
+  document.getElementById('pengajuanAlert').innerHTML = '';
+  const fieldsEl = document.getElementById('pengajuanFields');
+  const titles = {jaga:'🌙 Ajukan Jaga Malam', posyandu:'🤱 Ajukan Tugas Posyandu', event:'🎯 Ajukan Ikut Event'};
+  document.getElementById('pengajuanTitle').textContent = titles[tipe]||'📋 Ajukan Penugasan';
+
+  if(tipe==='jaga'){
+    fieldsEl.innerHTML = `
+      <div class="input-group"><label>Tanggal Jaga</label><input type="date" id="pjTanggal" value="${todayKey()}"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="input-group"><label>Jam Mulai</label><input type="time" id="pjJamMasuk" value="20:00"/></div>
+        <div class="input-group"><label>Jam Selesai</label><input type="time" id="pjJamSelesai" value="08:00"/></div>
+      </div>
+      <div class="input-group"><label>Keterangan</label><textarea id="pjKeterangan" rows="2" placeholder="Alasan pengajuan jaga malam..."></textarea></div>`;
+  } else if(tipe==='posyandu'){
+    const pyOpts = POSYANDU_LIST.map(p=>`<option value="${p.id}">${p.nama} — ${p.alamat}</option>`).join('');
+    fieldsEl.innerHTML = `
+      <div class="input-group"><label>Posyandu</label><select id="pjRefId"><option value="">— Pilih Posyandu —</option>${pyOpts}</select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="input-group"><label>Tanggal Mulai</label><input type="date" id="pjStart" value="${todayKey()}"/></div>
+        <div class="input-group"><label>Tanggal Selesai</label><input type="date" id="pjEnd" value="${todayKey()}"/></div>
+      </div>
+      <div class="input-group"><label>Keterangan</label><textarea id="pjKeterangan" rows="2" placeholder="Alasan pengajuan tugas posyandu..."></textarea></div>`;
+  } else if(tipe==='event'){
+    const today2=todayKey();
+    const evOpts = EVENT_LIST.filter(e=>e.end>=today2).map(e=>`<option value="${e.id}">${e.nama} (${e.start}–${e.end})</option>`).join('');
+    if(!evOpts){
+      fieldsEl.innerHTML=`<div class="alert alert-warning">Tidak ada event aktif saat ini.</div>`;
+      document.getElementById('pengajuanModal').classList.add('open'); return;
+    }
+    fieldsEl.innerHTML = `
+      <div class="input-group"><label>Event</label><select id="pjRefId"><option value="">— Pilih Event —</option>${evOpts}</select></div>
+      <div class="input-group"><label>Keterangan</label><textarea id="pjKeterangan" rows="2" placeholder="Alasan pengajuan ikut event..."></textarea></div>`;
+  }
+  document.getElementById('pengajuanModal').classList.add('open');
+}
+
+function doSubmitPengajuan(){
+  const alertEl = document.getElementById('pengajuanAlert');
+  const ket = (document.getElementById('pjKeterangan')?.value||'').trim();
+  if(!ket){alertEl.innerHTML=`<div class="alert alert-danger">Keterangan wajib diisi!</div>`;return;}
+  const u = STATE.user;
+  const tipe = _pengajuanTipe;
+  let data = {id:genId(), uid:u.id, nama:u.nama, tipe, status:'pending', keterangan:ket};
+
+  if(tipe==='jaga'){
+    const tanggal = document.getElementById('pjTanggal')?.value;
+    const jamMasuk = document.getElementById('pjJamMasuk')?.value;
+    const jamSelesai = document.getElementById('pjJamSelesai')?.value;
+    if(!tanggal||!jamMasuk||!jamSelesai){alertEl.innerHTML=`<div class="alert alert-danger">Semua field wajib diisi!</div>`;return;}
+    // Check duplicate
+    if(JADWAL_JAGA.find(j=>j.uid===u.id&&j.tanggal===tanggal)){
+      alertEl.innerHTML=`<div class="alert alert-warning">Anda sudah memiliki jadwal jaga pada tanggal tersebut.</div>`;return;
+    }
+    data = {...data, tanggal, jamMasuk, jamSelesai};
+  } else if(tipe==='posyandu'){
+    const refId = document.getElementById('pjRefId')?.value;
+    const start = document.getElementById('pjStart')?.value;
+    const end = document.getElementById('pjEnd')?.value;
+    if(!refId||!start||!end){alertEl.innerHTML=`<div class="alert alert-danger">Semua field wajib diisi!</div>`;return;}
+    data = {...data, refId, start, end};
+  } else if(tipe==='event'){
+    const refId = document.getElementById('pjRefId')?.value;
+    if(!refId){alertEl.innerHTML=`<div class="alert alert-danger">Pilih event terlebih dahulu!</div>`;return;}
+    data = {...data, refId};
+  }
+
+  PENGAJUAN_LIST.push(data);
+  savePengajuan();
+  closeModal('pengajuanModal');
+  alert('✅ Pengajuan berhasil dikirim! Menunggu persetujuan admin.');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADMIN: VERIFIKASI PENGAJUAN
+// ═══════════════════════════════════════════════════════════
+function renderPendingPengajuan(){
+  const pending = PENGAJUAN_LIST.filter(p=>p.status==='pending');
+  const card = document.getElementById('pendingPengajuanCard');
+  const list = document.getElementById('pendingPengajuanList');
+  if(!card||!list) return;
+  card.style.display = pending.length ? 'block' : 'none';
+  // Update badge
+  const badge = document.getElementById('pengajuanBadge');
+  if(badge){badge.textContent=pending.length>0?` (${pending.length})` : '';badge.style.display=pending.length?'inline':'none';}
+  list.innerHTML = pending.map(p=>{
+    const u = USERS.find(x=>x.id===p.uid);
+    const tipeLabel = {jaga:'🌙 Jaga Malam', posyandu:'🤱 Posyandu', event:'🎯 Event'}[p.tipe]||p.tipe;
+    let detail = '';
+    if(p.tipe==='jaga') detail = `${p.tanggal} · ${p.jamMasuk}–${p.jamSelesai}`;
+    else if(p.tipe==='posyandu'){const py=POSYANDU_LIST.find(x=>x.id===p.refId); detail=`${py?py.nama:'?'} · ${p.start}–${p.end}`;}
+    else if(p.tipe==='event'){const ev=EVENT_LIST.find(x=>x.id===p.refId); detail=ev?ev.nama:'?';}
+    return `<div class="jadwal-item">
+      <span class="pending-dot" style="background:#8b5cf6"></span>
+      <div class="jadwal-info">
+        <div class="jadwal-nama">${u?u.nama:p.nama} <span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:.6rem">${tipeLabel}</span></div>
+        <div class="jadwal-meta">${detail}</div>
+        <div class="jadwal-meta" style="font-style:italic">"${p.keterangan}"</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn btn-sm" style="background:var(--green);color:#fff;padding:5px 10px" onclick="approveRejectPengajuan('${p.id}',true)">✅</button>
+        <button class="btn btn-sm btn-danger" style="padding:5px 10px" onclick="approveRejectPengajuan('${p.id}',false)">❌</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function approveRejectPengajuan(id, approved){
+  const idx = PENGAJUAN_LIST.findIndex(p=>p.id===id);
+  if(idx<0) return;
+  const p = PENGAJUAN_LIST[idx];
+  PENGAJUAN_LIST[idx].status = approved ? 'approved' : 'rejected';
+  savePengajuan();
+
+  if(approved){
+    // Apply the pengajuan
+    if(p.tipe==='jaga'){
+      if(!JADWAL_JAGA.find(j=>j.uid===p.uid&&j.tanggal===p.tanggal)){
+        JADWAL_JAGA.push({id:genId(),uid:p.uid,tanggal:p.tanggal,jamMasuk:p.jamMasuk,jamSelesai:p.jamSelesai,absenMasuk:null,absenPulang:null});
+        saveJadwal();
+      }
+    } else if(p.tipe==='posyandu'){
+      PENUGASAN_PY.push({id:genId(),uid:p.uid,posyanduId:p.refId,start:p.start,end:p.end});
+      savePenugasanPy();
+    } else if(p.tipe==='event'){
+      const evIdx=EVENT_LIST.findIndex(e=>e.id===p.refId);
+      if(evIdx>=0){
+        if(!EVENT_LIST[evIdx].petugas) EVENT_LIST[evIdx].petugas=[];
+        if(!EVENT_LIST[evIdx].petugas.includes(p.uid)) EVENT_LIST[evIdx].petugas.push(p.uid);
+        saveEvent();
+      }
+    }
+    alert(`✅ Pengajuan ${p.nama} disetujui!`);
+  } else {
+    alert(`❌ Pengajuan ${p.nama} ditolak.`);
+  }
+  renderPendingPengajuan();
+  renderAdmin();
 }
 
 </script>
