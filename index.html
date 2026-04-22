@@ -195,6 +195,16 @@
     .jadwal-info{flex:1;min-width:0;}
     .jadwal-nama{font-weight:700;font-size:.85rem;}
     .jadwal-meta{font-size:.7rem;color:var(--muted);margin-top:2px;}
+
+    /* ── POSYANDU / EVENT ───────────────────────────── */
+    .badge-posyandu{background:linear-gradient(135deg,#065f46,#059669);color:#fff;}
+    .badge-event{background:linear-gradient(135deg,#7c2d12,#ea580c);color:#fff;}
+    .badge-pending{background:#fef3c7;color:#92400e;border:1px solid #fde68a;}
+    .event-card{background:linear-gradient(135deg,#7c2d12,#ea580c);color:#fff;border-radius:var(--radius);padding:16px;margin-bottom:12px;}
+    .loc-mode-toggle{display:flex;gap:6px;margin-bottom:10px;}
+    .loc-mode-btn{flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:.75rem;font-weight:700;cursor:pointer;text-align:center;transition:all .15s;color:var(--muted);}
+    .loc-mode-btn.active{background:var(--green);border-color:var(--green);color:#fff;}
+    .pending-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:4px;}
   </style>
 </head>
 <body>
@@ -268,6 +278,20 @@
       <div id="jagaMalamInfo"></div>
       <div id="cardJagaMalamAbsen"></div>
     </div>
+
+    <!-- POSYANDU CARD -->
+    <div class="card" id="cardPosyandu" style="display:none;border:2px solid #059669">
+      <div class="card-title" style="color:#059669">🤱 Tugas Posyandu Hari Ini</div>
+      <div id="posyanduInfo"></div>
+      <div id="cardPosyanduAbsen"></div>
+    </div>
+
+    <!-- EVENT CARD -->
+    <div class="card" id="cardEvent" style="display:none;border:2px solid #ea580c">
+      <div class="card-title" style="color:#ea580c">🎯 Event Hari Ini</div>
+      <div id="eventInfo"></div>
+      <div id="cardEventAbsen"></div>
+    </div>
   </div>
 
   <!-- REKAP -->
@@ -285,9 +309,11 @@
   <div class="page" id="page-admin">
     <div class="section-header"><div><div class="section-title" id="adminPageTitle">Dashboard Admin</div><div class="section-sub">Kelola sistem absensi</div></div></div>
     <div class="admin-tabs" id="adminTabsBar">
-      <div class="admin-tab active" id="aTab-monitor" onclick="switchAdminTab('monitor',this)">📊 Monitor</div>
+      <div class="admin-tab active" id="aTab-monitor" onclick="switchAdminTab('monitor',this)">📊 Monitor<span id="pendingBadge" style="font-size:.6rem;background:#ef4444;color:#fff;border-radius:8px;padding:1px 6px;margin-left:4px;display:none"></span></div>
       <div class="admin-tab" id="aTab-rekap-bulanan" onclick="switchAdminTab('rekap-bulanan',this)">📅 Rekap Bulanan</div>
       <div class="admin-tab" id="aTab-pustu" onclick="switchAdminTab('pustu',this)">🏥 Pustu</div>
+      <div class="admin-tab" id="aTab-posyandu" onclick="switchAdminTab('posyandu',this)">🤱 Posyandu</div>
+      <div class="admin-tab" id="aTab-event" onclick="switchAdminTab('event',this)">🎯 Event</div>
       <div class="admin-tab" id="aTab-jadwal-jaga" onclick="switchAdminTab('jadwal-jaga',this)">🌙 Jadwal Jaga</div>
       <div class="admin-tab" id="aTab-users" onclick="switchAdminTab('users',this)">👥 Pengguna</div>
       <div class="admin-tab" id="aTab-config" onclick="switchAdminTab('config',this)">⚙️ Konfigurasi</div>
@@ -299,6 +325,10 @@
         <div class="stat-card"><div class="stat-num" id="statTerlambat" style="color:var(--yellow)">0</div><div class="stat-label">Terlambat</div></div>
         <div class="stat-card"><div class="stat-num" id="statBelum" style="color:var(--red)">0</div><div class="stat-label">Belum Absen</div></div>
         <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total Petugas</div></div>
+      </div>
+      <div class="card" id="pendingVerifCard" style="display:none;border:2px solid var(--yellow)">
+        <div class="card-title" style="color:#b45309">⏳ Menunggu Verifikasi Manual</div>
+        <div id="pendingVerifList"></div>
       </div>
       <div class="card"><div class="card-title">Absensi Hari Ini</div><div id="adminList"></div></div>
     </div>
@@ -318,7 +348,35 @@
       <div class="card" style="padding:10px 16px"><div id="pustuMgmtList"></div></div>
     </div>
 
-    <div class="tab-panel" id="tab-jadwal-jaga">
+    <div class="tab-panel" id="tab-posyandu">
+      <button class="btn btn-primary btn-sm" onclick="openPosyanduModal(null)" style="margin-bottom:10px;width:100%">➕ Tambah Posyandu</button>
+      <div class="card" style="padding:10px 16px"><div id="posyanduMgmtList"></div></div>
+      <div class="card" style="margin-top:6px">
+        <div class="card-title">Penugasan Posyandu</div>
+        <div class="input-group">
+          <label>Petugas</label>
+          <select id="pyAssignUser"><option value="">— Pilih Petugas —</option></select>
+        </div>
+        <div class="input-group">
+          <label>Posyandu</label>
+          <select id="pyAssignPosyandu"><option value="">— Pilih Posyandu —</option></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="input-group"><label>Tanggal Mulai</label><input type="date" id="pyAssignStart"/></div>
+          <div class="input-group"><label>Tanggal Selesai</label><input type="date" id="pyAssignEnd"/></div>
+        </div>
+        <div id="pyAssignAlert"></div>
+        <button class="btn btn-primary btn-sm" onclick="doSavePenugasanPosyandu()" style="width:100%">💾 Simpan Penugasan</button>
+        <div style="margin-top:12px"><div id="penugasanPosyanduList"></div></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-event">
+      <button class="btn btn-primary btn-sm" onclick="openEventModal(null)" style="margin-bottom:10px;width:100%">➕ Tambah Event</button>
+      <div id="eventMgmtList"></div>
+    </div>
+
+        <div class="tab-panel" id="tab-jadwal-jaga">
       <div class="card">
         <div class="card-title">Buat Jadwal Jaga Malam</div>
         <div class="input-group">
@@ -555,7 +613,7 @@
       <select id="uRole">
         <option>Kepala Puskesmas</option>
         <option>Penanggung Jawab Klaster Manajemen</option>
-        <option>Dokter</option><option>Perawat</option><option>Bidan</option>
+        <option>Dokter</option><option>Dokter Internship</option><option>Perawat</option><option>Bidan</option>
         <option>Apoteker</option><option>Tenaga Laboratorium</option>
         <option>Tenaga Kefarmasian</option>
         <option>Kesehatan Masyarakat</option>
@@ -650,6 +708,99 @@
   </div>
 </div>
 
+<!-- MODAL: POSYANDU -->
+<div class="modal-bg" id="posyanduModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="posyanduModalTitle">🤱 Tambah Posyandu</div>
+    <div class="input-group"><label>Nama Posyandu</label><input type="text" id="pyNama" placeholder="Posyandu Melati ..."/></div>
+    <div class="input-group"><label>Alamat</label><input type="text" id="pyAlamat" placeholder="Desa/Kelurahan ..."/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="input-group"><label>Latitude</label><input type="number" id="pyLat" placeholder="-0.54" step="0.0001"/></div>
+      <div class="input-group"><label>Longitude</label><input type="number" id="pyLng" placeholder="122.34" step="0.0001"/></div>
+    </div>
+    <div class="input-group"><label>Radius Absen (meter)</label><input type="number" id="pyRadius" value="100" min="10" max="500"/></div>
+    <div class="input-group">
+      <label>Mode Absensi</label>
+      <select id="pyMode">
+        <option value="gps">GPS (wajib dalam radius)</option>
+        <option value="manual">Manual (input tanpa GPS)</option>
+        <option value="both">GPS atau Manual (pilihan petugas)</option>
+      </select>
+    </div>
+    <div id="posyanduAlert"></div>
+    <button class="btn btn-primary" onclick="doSavePosyandu()" style="margin-bottom:10px">Simpan Posyandu</button>
+    <button class="btn btn-secondary" onclick="closeModal('posyanduModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL: EVENT -->
+<div class="modal-bg" id="eventModal">
+  <div class="modal-sheet modal-full">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="eventModalTitle">🎯 Tambah Event</div>
+    <div class="input-group"><label>Nama Event</label><input type="text" id="evNama" placeholder="Pekan Perkasa, Posko Lebaran ..."/></div>
+    <div class="input-group"><label>Alamat</label><input type="text" id="evAlamat" placeholder="Lokasi event ..."/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="input-group"><label>Latitude</label><input type="number" id="evLat" placeholder="-0.54" step="0.0001"/></div>
+      <div class="input-group"><label>Longitude</label><input type="number" id="evLng" placeholder="122.34" step="0.0001"/></div>
+    </div>
+    <div class="input-group"><label>Radius Absen (meter)</label><input type="number" id="evRadius" value="100" min="10" max="500"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="input-group"><label>Tanggal Mulai</label><input type="date" id="evStart"/></div>
+      <div class="input-group"><label>Tanggal Selesai</label><input type="date" id="evEnd"/></div>
+    </div>
+    <div class="input-group">
+      <label>Mode Absensi</label>
+      <select id="evMode">
+        <option value="gps">GPS (wajib dalam radius)</option>
+        <option value="manual">Manual (input tanpa GPS)</option>
+        <option value="both">GPS atau Manual (pilihan petugas)</option>
+      </select>
+    </div>
+    <div style="padding:12px 0;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#f8fdfb">
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:6px">Pengaturan Absen Reguler</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem">
+        <input type="checkbox" id="evReplaceAbsen" style="width:16px;height:16px;accent-color:var(--green)"/>
+        Event ini <b>menggantikan</b> absen pagi (peserta tidak perlu absen di Puskesmas)
+      </label>
+    </div>
+    <div class="input-group">
+      <label>Tugaskan Petugas</label>
+      <div id="evPetugasCheckList" style="max-height:160px;overflow-y:auto;border:1.5px solid var(--border);border-radius:12px;padding:10px;background:#f8fdfb"></div>
+    </div>
+    <div id="eventAlert"></div>
+    <button class="btn btn-primary" onclick="doSaveEvent()" style="margin-bottom:10px">Simpan Event</button>
+    <button class="btn btn-secondary" onclick="closeModal('eventModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL: MANUAL ABSEN (Posyandu/Event) -->
+<div class="modal-bg" id="manualAbsenModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="manualAbsenTitle">📝 Absen Manual</div>
+    <div class="alert alert-warning" style="margin-bottom:14px">⚠️ Absen manual memerlukan persetujuan admin.</div>
+    <div class="input-group"><label>Keterangan Kegiatan</label><textarea id="manualKeterangan" placeholder="Contoh: Posyandu Melati — kegiatan imunisasi balita" rows="2"></textarea></div>
+    <div id="manualAbsenAlert"></div>
+    <button class="btn btn-primary" onclick="doSubmitManualAbsen()" style="margin-bottom:10px">📨 Kirim untuk Disetujui</button>
+    <button class="btn btn-secondary" onclick="closeModal('manualAbsenModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL: VERIFIKASI MANUAL (Admin) -->
+<div class="modal-bg" id="verifikasiModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✅ Verifikasi Absen Manual</div>
+    <div id="verifikasiContent"></div>
+    <div id="verifikasiAlert"></div>
+    <button class="btn btn-primary" onclick="doVerifikasiAbsen(true)" style="margin-bottom:8px">✅ Setujui</button>
+    <button class="btn btn-danger" onclick="doVerifikasiAbsen(false)" style="margin-bottom:8px">❌ Tolak</button>
+    <button class="btn btn-secondary" onclick="closeModal('verifikasiModal')">Batal</button>
+  </div>
+</div>
+
 <!-- MODAL: JAGA MALAM ABSEN -->
 <div class="modal-bg" id="jagaAbsenModal">
   <div class="modal-sheet">
@@ -700,6 +851,14 @@ let ABSENSI = LS.get('eab_absensi', []);
 let JURNAL_DATA = LS.get('eab_jurnal', []); // [{id, uid, bulan, tahun, kepala, kepalaDetail, columns, rows}]
 let PUSTU_LIST  = LS.get('eab_pustu',  []); // [{id,nama,alamat,lat,lng,radius}]
 let JADWAL_JAGA = LS.get('eab_jadwal', []); // [{id,uid,tanggal,jamMasuk,jamSelesai,absenMasuk,absenPulang}]
+let POSYANDU_LIST   = LS.get('eab_posyandu', []); // [{id,nama,alamat,lat,lng,radius,mode}]
+let EVENT_LIST      = LS.get('eab_events',  []); // [{id,nama,alamat,lat,lng,radius,mode,start,end,replaceAbsen,petugas:[uid]}]
+let PENUGASAN_PY    = LS.get('eab_penugas_py', []); // [{id,uid,posyanduId,start,end}]
+let MANUAL_ABSEN    = LS.get('eab_manual',  []); // [{id,uid,tanggal,tipe,refId,keterangan,status,jam,lokasi}]
+const savePosyandu  = ()=> LS.set('eab_posyandu', POSYANDU_LIST);
+const saveEvent     = ()=> LS.set('eab_events',   EVENT_LIST);
+const savePenugasanPy=()=> LS.set('eab_penugas_py',PENUGASAN_PY);
+const saveManual    = ()=> LS.set('eab_manual',   MANUAL_ABSEN);
 const savePustu     = ()=> LS.set('eab_pustu',  PUSTU_LIST);
 const saveJadwal    = ()=> LS.set('eab_jadwal', JADWAL_JAGA);
 
@@ -852,6 +1011,45 @@ function renderBeranda(){
     renderJagaMalamCard(jadwalHariIni);
   } else {
     cardJaga.style.display='none';
+  }
+
+  // Posyandu tugas hari ini
+  const today2=todayKey();
+  const [ty,tm,td] = today2.split('-').map(Number);
+  const dayOfWeek = new Date(ty,tm-1,td).getDay();
+  const penugasanHariIni = PENUGASAN_PY.find(p=>p.uid===u.id && p.start<=today2 && p.end>=today2);
+  const cardPy=document.getElementById('cardPosyandu');
+  if(penugasanHariIni){
+    const py=POSYANDU_LIST.find(p=>p.id===penugasanHariIni.posyanduId);
+    if(py){
+      cardPy.style.display='block';
+      document.getElementById('posyanduInfo').innerHTML=`<div class="alert" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;margin-bottom:12px">🤱 Tugas di <b>${py.nama}</b> — ${py.alamat}</div>`;
+      renderPosyanduAbsenCard(py, penugasanHariIni);
+    } else { cardPy.style.display='none'; }
+  } else { cardPy.style.display='none'; }
+
+  // Event aktif hari ini
+  const activeEvent = EVENT_LIST.find(ev=>ev.start<=today2&&ev.end>=today2&&(ev.petugas||[]).includes(u.id));
+  const cardEv=document.getElementById('cardEvent');
+  if(activeEvent){
+    cardEv.style.display='block';
+    document.getElementById('eventInfo').innerHTML=`<div class="alert" style="background:#ffedd5;color:#7c2d12;border:1px solid #fdba74;margin-bottom:12px">🎯 <b>${activeEvent.nama}</b> — ${activeEvent.alamat}</div>`;
+    renderEventAbsenCard(activeEvent);
+  } else { cardEv.style.display='none'; }
+
+  // If active event replaces absen reguler, auto-mark attendance from event absen
+  const recCheck=getTodayRecord(u.id);
+  if(activeEvent&&activeEvent.replaceAbsen){
+    const evAbsen=MANUAL_ABSEN.find(m=>m.uid===u.id&&m.tanggal===today2&&m.tipe==='event'&&m.refId===activeEvent.id&&m.status==='approved');
+    if(evAbsen&&!recCheck?.masuk){
+      // Auto-create absen record from event
+      let autoRec=ABSENSI.find(a=>a.uid===u.id&&a.tanggal===today2);
+      if(!autoRec){autoRec={uid:u.id,nama:u.nama,tanggal:today2,masuk:null,pulang:null};ABSENSI.push(autoRec);}
+      if(!autoRec.masuk){
+        autoRec.masuk={jam:evAbsen.jam,status:'hadir',lat:0,lng:0,distance:0,foto:null,lokasi:activeEvent.nama,tipe:'event'};
+        saveAbsensi();
+      }
+    }
   }
   const rec=getTodayRecord(u.id);
   const tmEl=document.getElementById('timeMasuk'), tpEl=document.getElementById('timePulang');
@@ -1343,6 +1541,8 @@ function switchAdminTab(name,el){
   if(name==='config')         renderConfigDisplay();
   if(name==='rekap-bulanan')  initRekapBulanan();
   if(name==='pustu')          { renderPustuMgmt(); }
+  if(name==='posyandu')       { renderPosyanduMgmt(); initPosyanduAssign(); }
+  if(name==='event')          { renderEventMgmt(); }
   if(name==='jadwal-jaga')    { initJadwalJaga(); }
   if(name==='semua-rekap')    { populateSaRekapFilter(); renderSaRekap(); }
 }
@@ -1527,6 +1727,13 @@ function renderAdmin(){
   document.getElementById('statTerlambat').textContent=recs.filter(a=>a.masuk?.status==='terlambat').length;
   document.getElementById('statBelum').textContent=Math.max(0,USERS.filter(u=>!u.isAdmin).length - recs.filter(a=>a.masuk).length);
   document.getElementById('statTotal').textContent=USERS.filter(u=>!u.isAdmin).length;
+  const pendingCount=MANUAL_ABSEN.filter(m=>m.status==='pending').length;
+  const pendingBadge=document.getElementById('pendingBadge');
+  if(pendingBadge){
+    pendingBadge.textContent=pendingCount>0?` (${pendingCount} menunggu)`:'';
+    pendingBadge.style.display=pendingCount>0?'inline':'none';
+  }
+  renderPendingVerif();
   const list=document.getElementById('adminList');
   const allPetugas=USERS.filter(u=>!u.isAdmin);
   if(!allPetugas.length){list.innerHTML=`<div class="empty-state"><p>Belum ada petugas.</p></div>`;return;}
@@ -2111,6 +2318,441 @@ function doSaEditJam(){
   renderBeranda();
   alert('✅ Jam absensi berhasil diubah!');
 }
+
+// ═══════════════════════════════════════════════════════════
+// POSYANDU MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+let _editingPosyanduId=null;
+
+function renderPosyanduMgmt(){
+  const div=document.getElementById('posyanduMgmtList');
+  if(!POSYANDU_LIST.length){div.innerHTML=`<div class="empty-state"><p>Belum ada Posyandu terdaftar.</p></div>`;return;}
+  div.innerHTML=POSYANDU_LIST.map(p=>{
+    const modeLabel={gps:'GPS',manual:'Manual',both:'GPS/Manual'}[p.mode]||p.mode;
+    return `<div class="jadwal-item">
+      <div class="jadwal-dot" style="background:#059669"></div>
+      <div class="jadwal-info">
+        <div class="jadwal-nama">🤱 ${p.nama}</div>
+        <div class="jadwal-meta">${p.alamat} · R:${p.radius}m · Mode: ${modeLabel}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="icon-btn" onclick="openPosyanduModal('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="icon-btn del" onclick="deletePosyandu('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openPosyanduModal(id){
+  _editingPosyanduId=id;
+  document.getElementById('posyanduAlert').innerHTML='';
+  if(!id){
+    document.getElementById('posyanduModalTitle').textContent='🤱 Tambah Posyandu Baru';
+    ['pyNama','pyAlamat','pyLat','pyLng'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('pyRadius').value=100;
+    document.getElementById('pyMode').value='gps';
+  } else {
+    const p=POSYANDU_LIST.find(x=>x.id===id); if(!p)return;
+    document.getElementById('posyanduModalTitle').textContent='✏️ Edit Posyandu';
+    document.getElementById('pyNama').value=p.nama;
+    document.getElementById('pyAlamat').value=p.alamat||'';
+    document.getElementById('pyLat').value=p.lat;
+    document.getElementById('pyLng').value=p.lng;
+    document.getElementById('pyRadius').value=p.radius;
+    document.getElementById('pyMode').value=p.mode||'gps';
+  }
+  document.getElementById('posyanduModal').classList.add('open');
+}
+
+function doSavePosyandu(){
+  const nama=document.getElementById('pyNama').value.trim();
+  const alamat=document.getElementById('pyAlamat').value.trim();
+  const lat=parseFloat(document.getElementById('pyLat').value);
+  const lng=parseFloat(document.getElementById('pyLng').value);
+  const radius=parseInt(document.getElementById('pyRadius').value)||100;
+  const mode=document.getElementById('pyMode').value;
+  const alertEl=document.getElementById('posyanduAlert');
+  if(!nama){alertEl.innerHTML=`<div class="alert alert-danger">Nama Posyandu wajib diisi!</div>`;return;}
+  if(mode!=='manual'&&(isNaN(lat)||isNaN(lng))){alertEl.innerHTML=`<div class="alert alert-danger">Lat/Lng wajib untuk mode GPS!</div>`;return;}
+  if(!_editingPosyanduId){
+    POSYANDU_LIST.push({id:genId(),nama,alamat,lat:lat||0,lng:lng||0,radius,mode});
+  } else {
+    const idx=POSYANDU_LIST.findIndex(p=>p.id===_editingPosyanduId);
+    if(idx>=0) POSYANDU_LIST[idx]={...POSYANDU_LIST[idx],nama,alamat,lat:lat||0,lng:lng||0,radius,mode};
+  }
+  savePosyandu();
+  closeModal('posyanduModal');
+  renderPosyanduMgmt();
+  populatePosyanduAssignDropdowns();
+}
+
+function deletePosyandu(id){
+  if(!confirm('Hapus Posyandu ini?')) return;
+  POSYANDU_LIST=POSYANDU_LIST.filter(p=>p.id!==id);
+  PENUGASAN_PY=PENUGASAN_PY.filter(p=>p.posyanduId!==id);
+  savePosyandu(); savePenugasanPy();
+  renderPosyanduMgmt();
+}
+
+function initPosyanduAssign(){
+  populatePosyanduAssignDropdowns();
+  document.getElementById('pyAssignStart').value=todayKey();
+  document.getElementById('pyAssignEnd').value=todayKey();
+  renderPenugasanPosyanduList();
+}
+
+function populatePosyanduAssignDropdowns(){
+  const selU=document.getElementById('pyAssignUser');
+  const selP=document.getElementById('pyAssignPosyandu');
+  if(!selU||!selP) return;
+  selU.innerHTML='<option value="">— Pilih Petugas —</option>';
+  USERS.filter(u=>!u.isAdmin&&!isSuperAdmin(u)).forEach(u=>{
+    selU.innerHTML+=`<option value="${u.id}">${u.nama} (${u.role})</option>`;
+  });
+  selP.innerHTML='<option value="">— Pilih Posyandu —</option>';
+  POSYANDU_LIST.forEach(p=>{
+    selP.innerHTML+=`<option value="${p.id}">${p.nama} — ${p.alamat}</option>`;
+  });
+}
+
+function doSavePenugasanPosyandu(){
+  const uid=document.getElementById('pyAssignUser').value;
+  const posyanduId=document.getElementById('pyAssignPosyandu').value;
+  const start=document.getElementById('pyAssignStart').value;
+  const end=document.getElementById('pyAssignEnd').value;
+  const alertEl=document.getElementById('pyAssignAlert');
+  if(!uid||!posyanduId||!start||!end){alertEl.innerHTML=`<div class="alert alert-danger">Semua field wajib diisi!</div>`;return;}
+  if(end<start){alertEl.innerHTML=`<div class="alert alert-danger">Tanggal selesai harus setelah tanggal mulai!</div>`;return;}
+  PENUGASAN_PY.push({id:genId(),uid,posyanduId,start,end});
+  savePenugasanPy();
+  alertEl.innerHTML=`<div class="alert alert-success">✅ Penugasan berhasil disimpan!</div>`;
+  setTimeout(()=>{alertEl.innerHTML='';},2000);
+  renderPenugasanPosyanduList();
+}
+
+function renderPenugasanPosyanduList(){
+  const div=document.getElementById('penugasanPosyanduList');
+  if(!div) return;
+  const aktif=PENUGASAN_PY.filter(p=>p.end>=todayKey()).sort((a,b)=>a.start.localeCompare(b.start));
+  if(!aktif.length){div.innerHTML=`<div class="empty-state" style="padding:16px 0"><p>Belum ada penugasan aktif.</p></div>`;return;}
+  div.innerHTML='<div class="card-title" style="margin-bottom:8px">Penugasan Aktif</div>'+aktif.map(p=>{
+    const u=USERS.find(x=>x.id===p.uid);
+    const py=POSYANDU_LIST.find(x=>x.id===p.posyanduId);
+    return `<div class="jadwal-item">
+      <div class="jadwal-dot" style="background:#059669"></div>
+      <div class="jadwal-info">
+        <div class="jadwal-nama">${u?u.nama:'?'}</div>
+        <div class="jadwal-meta">🤱 ${py?py.nama:'?'} · ${p.start} s/d ${p.end}</div>
+      </div>
+      <button class="icon-btn del" onclick="deletePenugasanPy('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
+    </div>`;
+  }).join('');
+}
+
+function deletePenugasanPy(id){
+  PENUGASAN_PY=PENUGASAN_PY.filter(p=>p.id!==id);
+  savePenugasanPy();
+  renderPenugasanPosyanduList();
+}
+
+// ═══════════════════════════════════════════════════════════
+// EVENT MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+let _editingEventId=null;
+
+function renderEventMgmt(){
+  const div=document.getElementById('eventMgmtList');
+  if(!EVENT_LIST.length){div.innerHTML=`<div class="empty-state"><p>Belum ada Event terdaftar.</p></div>`;return;}
+  div.innerHTML=EVENT_LIST.map(ev=>{
+    const modeLabel={gps:'GPS',manual:'Manual',both:'GPS/Manual'}[ev.mode]||ev.mode;
+    const ptCount=(ev.petugas||[]).length;
+    return `<div class="card" style="padding:14px 16px;margin-bottom:10px;border-left:4px solid #ea580c">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-weight:800;font-size:.9rem">🎯 ${ev.nama}</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${ev.alamat}</div>
+          <div style="font-size:.72rem;color:var(--muted)">${ev.start} – ${ev.end} · ${modeLabel} · ${ptCount} petugas</div>
+          <div style="margin-top:4px"><span class="badge" style="font-size:.6rem;${ev.replaceAbsen?'background:#fef3c7;color:#92400e':'background:var(--green-light);color:var(--green-dark)'}">
+            ${ev.replaceAbsen?'Gantikan absen reguler':'Tambahan (absen reguler tetap wajib)'}
+          </span></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" onclick="openEventModal('${ev.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="icon-btn del" onclick="deleteEvent('${ev.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openEventModal(id){
+  _editingEventId=id;
+  document.getElementById('eventAlert').innerHTML='';
+  // Populate petugas checklist
+  const checkList=document.getElementById('evPetugasCheckList');
+  const existingPetugas=id?((EVENT_LIST.find(e=>e.id===id)||{}).petugas||[]):[];
+  checkList.innerHTML=USERS.filter(u=>!u.isAdmin&&!isSuperAdmin(u)).map(u=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:.82rem">
+      <input type="checkbox" value="${u.id}" ${existingPetugas.includes(u.id)?'checked':''} style="width:15px;height:15px;accent-color:var(--green)"/>
+      ${u.nama} <span style="font-size:.7rem;color:var(--muted)">(${u.role})</span>
+    </label>`).join('');
+  if(!id){
+    document.getElementById('eventModalTitle').textContent='🎯 Tambah Event Baru';
+    ['evNama','evAlamat','evLat','evLng'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('evRadius').value=100;
+    document.getElementById('evMode').value='gps';
+    document.getElementById('evStart').value=todayKey();
+    document.getElementById('evEnd').value=todayKey();
+    document.getElementById('evReplaceAbsen').checked=false;
+  } else {
+    const ev=EVENT_LIST.find(x=>x.id===id); if(!ev)return;
+    document.getElementById('eventModalTitle').textContent='✏️ Edit Event';
+    document.getElementById('evNama').value=ev.nama;
+    document.getElementById('evAlamat').value=ev.alamat||'';
+    document.getElementById('evLat').value=ev.lat;
+    document.getElementById('evLng').value=ev.lng;
+    document.getElementById('evRadius').value=ev.radius;
+    document.getElementById('evMode').value=ev.mode||'gps';
+    document.getElementById('evStart').value=ev.start;
+    document.getElementById('evEnd').value=ev.end;
+    document.getElementById('evReplaceAbsen').checked=!!ev.replaceAbsen;
+  }
+  document.getElementById('eventModal').classList.add('open');
+}
+
+function doSaveEvent(){
+  const nama=document.getElementById('evNama').value.trim();
+  const alamat=document.getElementById('evAlamat').value.trim();
+  const lat=parseFloat(document.getElementById('evLat').value);
+  const lng=parseFloat(document.getElementById('evLng').value);
+  const radius=parseInt(document.getElementById('evRadius').value)||100;
+  const mode=document.getElementById('evMode').value;
+  const start=document.getElementById('evStart').value;
+  const end=document.getElementById('evEnd').value;
+  const replaceAbsen=document.getElementById('evReplaceAbsen').checked;
+  const petugas=[...document.getElementById('evPetugasCheckList').querySelectorAll('input:checked')].map(i=>i.value);
+  const alertEl=document.getElementById('eventAlert');
+  if(!nama||!start||!end){alertEl.innerHTML=`<div class="alert alert-danger">Nama dan tanggal wajib diisi!</div>`;return;}
+  if(mode!=='manual'&&(isNaN(lat)||isNaN(lng))){alertEl.innerHTML=`<div class="alert alert-danger">Lat/Lng wajib untuk mode GPS!</div>`;return;}
+  const data={nama,alamat,lat:lat||0,lng:lng||0,radius,mode,start,end,replaceAbsen,petugas};
+  if(!_editingEventId){
+    EVENT_LIST.push({id:genId(),...data});
+  } else {
+    const idx=EVENT_LIST.findIndex(e=>e.id===_editingEventId);
+    if(idx>=0) EVENT_LIST[idx]={...EVENT_LIST[idx],...data};
+  }
+  saveEvent();
+  closeModal('eventModal');
+  renderEventMgmt();
+}
+
+function deleteEvent(id){
+  if(!confirm('Hapus event ini?')) return;
+  EVENT_LIST=EVENT_LIST.filter(e=>e.id!==id);
+  saveEvent();
+  renderEventMgmt();
+}
+
+// ═══════════════════════════════════════════════════════════
+// POSYANDU ABSEN (BERANDA CARD)
+// ═══════════════════════════════════════════════════════════
+function renderPosyanduAbsenCard(py, penugasan){
+  const el=document.getElementById('cardPosyanduAbsen');
+  const today=todayKey();
+  const existing=MANUAL_ABSEN.find(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe==='posyandu'&&m.refId===py.id);
+  if(existing){
+    const statusHTML={
+      pending:`<div class="alert alert-warning">⏳ Absen terkirim, menunggu verifikasi admin.</div>`,
+      approved:`<div class="alert alert-success">✅ Absen disetujui — ${existing.jam}</div>`,
+      rejected:`<div class="alert alert-danger">❌ Absen ditolak. Silakan kirim ulang.</div>`
+    }[existing.status]||'';
+    el.innerHTML=statusHTML+(existing.status==='rejected'?`<button class="btn btn-sm btn-warning" onclick="openManualAbsen('posyandu','${py.id}','${penugasan.id}')" style="width:100%;margin-top:6px">🔄 Kirim Ulang</button>`:'');
+    return;
+  }
+  if(py.mode==='gps'){
+    el.innerHTML=`<button class="btn btn-sm" style="background:linear-gradient(135deg,#065f46,#059669);color:#fff;width:100%" onclick="startPosyanduAbsenGPS('${py.id}')">📍 Absen GPS di Posyandu</button>`;
+  } else if(py.mode==='manual'){
+    el.innerHTML=`<button class="btn btn-sm btn-secondary" style="width:100%" onclick="openManualAbsen('posyandu','${py.id}','${penugasan.id}')">📝 Absen Manual</button>`;
+  } else {
+    el.innerHTML=`<div class="loc-mode-toggle">
+      <button class="loc-mode-btn" onclick="startPosyanduAbsenGPS('${py.id}')">📍 GPS</button>
+      <button class="loc-mode-btn" onclick="openManualAbsen('posyandu','${py.id}','${penugasan.id}')">📝 Manual</button>
+    </div>`;
+  }
+}
+
+function startPosyanduAbsenGPS(posyanduId){
+  const py=POSYANDU_LIST.find(p=>p.id===posyanduId); if(!py)return;
+  if(!navigator.geolocation){alert('GPS tidak tersedia.');return;}
+  alert('⏳ Mendeteksi lokasi GPS...');
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      const dist=haversine(pos.coords.latitude,pos.coords.longitude,py.lat,py.lng);
+      if(dist<=py.radius){
+        const jam=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+        submitAbsenPosyandu(posyanduId, jam, 'gps', py.nama, 'approved');
+      } else {
+        alert(`❌ Anda berada ${Math.round(dist)}m dari ${py.nama}. Harus dalam radius ${py.radius}m.`);
+      }
+    },
+    err=>alert('GPS gagal: '+err.message),
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+  );
+}
+
+function submitAbsenPosyandu(posyanduId, jam, metode, lokasi, status){
+  const today=todayKey();
+  const existing=MANUAL_ABSEN.findIndex(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe==='posyandu'&&m.refId===posyanduId);
+  const data={id:genId(),uid:STATE.user.id,tanggal:today,tipe:'posyandu',refId:posyanduId,jam,metode,lokasi,status,keterangan:''};
+  if(existing>=0) MANUAL_ABSEN[existing]=data;
+  else MANUAL_ABSEN.push(data);
+  saveManual();
+  renderBeranda();
+  if(status==='approved') alert(`✅ Absen Posyandu berhasil — ${jam}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EVENT ABSEN (BERANDA CARD)
+// ═══════════════════════════════════════════════════════════
+function renderEventAbsenCard(ev){
+  const el=document.getElementById('cardEventAbsen');
+  const today=todayKey();
+  const existing=MANUAL_ABSEN.find(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe==='event'&&m.refId===ev.id);
+  if(existing){
+    const statusHTML={
+      pending:`<div class="alert alert-warning">⏳ Absen terkirim, menunggu verifikasi admin.</div>`,
+      approved:`<div class="alert alert-success">✅ Absen event disetujui — ${existing.jam}</div>`,
+      rejected:`<div class="alert alert-danger">❌ Ditolak. Silakan kirim ulang.</div>`
+    }[existing.status]||'';
+    el.innerHTML=statusHTML+(existing.status==='rejected'?`<button class="btn btn-sm btn-warning" onclick="openManualAbsen('event','${ev.id}','')" style="width:100%;margin-top:6px">🔄 Kirim Ulang</button>`:'');
+    return;
+  }
+  if(ev.mode==='gps'){
+    el.innerHTML=`<button class="btn btn-sm" style="background:linear-gradient(135deg,#7c2d12,#ea580c);color:#fff;width:100%" onclick="startEventAbsenGPS('${ev.id}')">📍 Absen GPS di Event</button>`;
+  } else if(ev.mode==='manual'){
+    el.innerHTML=`<button class="btn btn-sm btn-secondary" style="width:100%" onclick="openManualAbsen('event','${ev.id}','')">📝 Absen Manual</button>`;
+  } else {
+    el.innerHTML=`<div class="loc-mode-toggle">
+      <button class="loc-mode-btn" onclick="startEventAbsenGPS('${ev.id}')">📍 GPS</button>
+      <button class="loc-mode-btn" onclick="openManualAbsen('event','${ev.id}','')">📝 Manual</button>
+    </div>`;
+  }
+}
+
+function startEventAbsenGPS(eventId){
+  const ev=EVENT_LIST.find(e=>e.id===eventId); if(!ev)return;
+  if(!navigator.geolocation){alert('GPS tidak tersedia.');return;}
+  alert('⏳ Mendeteksi lokasi GPS...');
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      const dist=haversine(pos.coords.latitude,pos.coords.longitude,ev.lat,ev.lng);
+      if(dist<=ev.radius){
+        const jam=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+        submitAbsenEvent(eventId, jam, 'gps', ev.nama, 'approved');
+      } else {
+        alert(`❌ Anda berada ${Math.round(dist)}m dari lokasi event. Harus dalam radius ${ev.radius}m.`);
+      }
+    },
+    err=>alert('GPS gagal: '+err.message),
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+  );
+}
+
+function submitAbsenEvent(eventId, jam, metode, lokasi, status){
+  const today=todayKey();
+  const existing=MANUAL_ABSEN.findIndex(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe==='event'&&m.refId===eventId);
+  const data={id:genId(),uid:STATE.user.id,tanggal:today,tipe:'event',refId:eventId,jam,metode,lokasi,status,keterangan:''};
+  if(existing>=0) MANUAL_ABSEN[existing]=data;
+  else MANUAL_ABSEN.push(data);
+  saveManual();
+  renderBeranda();
+  if(status==='approved') alert(`✅ Absen Event berhasil — ${jam}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MANUAL ABSEN MODAL
+// ═══════════════════════════════════════════════════════════
+let _manualAbsenCtx={};
+
+function openManualAbsen(tipe, refId, extra){
+  _manualAbsenCtx={tipe, refId, extra};
+  document.getElementById('manualAbsenAlert').innerHTML='';
+  document.getElementById('manualKeterangan').value='';
+  const label=tipe==='posyandu'?'Posyandu':'Event';
+  const ref=tipe==='posyandu'?(POSYANDU_LIST.find(p=>p.id===refId)||{nama:'?'}):(EVENT_LIST.find(e=>e.id===refId)||{nama:'?'});
+  document.getElementById('manualAbsenTitle').textContent=`📝 Absen Manual — ${ref.nama}`;
+  document.getElementById('manualAbsenModal').classList.add('open');
+}
+
+function doSubmitManualAbsen(){
+  const ket=document.getElementById('manualKeterangan').value.trim();
+  const alertEl=document.getElementById('manualAbsenAlert');
+  if(!ket){alertEl.innerHTML=`<div class="alert alert-danger">Keterangan wajib diisi!</div>`;return;}
+  const today=todayKey();
+  const jam=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const {tipe,refId}=_manualAbsenCtx;
+  const ref=tipe==='posyandu'?(POSYANDU_LIST.find(p=>p.id===refId)||{nama:'?'}):(EVENT_LIST.find(e=>e.id===refId)||{nama:'?'});
+  const existing=MANUAL_ABSEN.findIndex(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe===tipe&&m.refId===refId);
+  const data={id:genId(),uid:STATE.user.id,nama:STATE.user.nama,tanggal:today,tipe,refId,jam,metode:'manual',lokasi:ref.nama,status:'pending',keterangan:ket};
+  if(existing>=0) MANUAL_ABSEN[existing]={...MANUAL_ABSEN[existing],...data,id:MANUAL_ABSEN[existing].id};
+  else MANUAL_ABSEN.push(data);
+  saveManual();
+  closeModal('manualAbsenModal');
+  renderBeranda();
+  renderAdmin();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADMIN: PENDING VERIFIKASI
+// ═══════════════════════════════════════════════════════════
+let _verifyId=null;
+
+function renderPendingVerif(){
+  const pending=MANUAL_ABSEN.filter(m=>m.status==='pending');
+  const card=document.getElementById('pendingVerifCard');
+  const list=document.getElementById('pendingVerifList');
+  if(!card||!list) return;
+  card.style.display=pending.length?'block':'none';
+  list.innerHTML=pending.map(m=>{
+    const u=USERS.find(x=>x.id===m.uid);
+    const ref=m.tipe==='posyandu'?(POSYANDU_LIST.find(p=>p.id===m.refId)||{nama:'?'}):(EVENT_LIST.find(e=>e.id===m.refId)||{nama:'?'});
+    return `<div class="jadwal-item">
+      <span class="pending-dot"></span>
+      <div class="jadwal-info">
+        <div class="jadwal-nama">${u?u.nama:m.nama} <span class="badge badge-${m.tipe==='posyandu'?'posyandu':'event'}" style="font-size:.6rem">${m.tipe==='posyandu'?'🤱 Posyandu':'🎯 Event'}</span></div>
+        <div class="jadwal-meta">${ref.nama} · ${m.tanggal} · ${m.jam}</div>
+        <div class="jadwal-meta" style="font-style:italic">"${m.keterangan}"</div>
+      </div>
+      <button class="btn btn-sm btn-primary" style="width:auto;padding:6px 12px" onclick="openVerifikasi('${m.id}')">Verifikasi</button>
+    </div>`;
+  }).join('');
+}
+
+function openVerifikasi(id){
+  _verifyId=id;
+  const m=MANUAL_ABSEN.find(x=>x.id===id); if(!m)return;
+  const u=USERS.find(x=>x.id===m.uid);
+  const ref=m.tipe==='posyandu'?(POSYANDU_LIST.find(p=>p.id===m.refId)||{nama:'?'}):(EVENT_LIST.find(e=>e.id===m.refId)||{nama:'?'});
+  document.getElementById('verifikasiContent').innerHTML=`
+    <div style="background:#f8fdfb;border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:.9rem">${u?u.nama:m.nama}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:4px">${m.tipe==='posyandu'?'🤱 Posyandu':'🎯 Event'}: ${ref.nama}</div>
+      <div style="font-size:.78rem;color:var(--muted)">${m.tanggal} · ${m.jam}</div>
+      <div style="font-size:.82rem;margin-top:8px;font-style:italic">"${m.keterangan}"</div>
+    </div>`;
+  document.getElementById('verifikasiAlert').innerHTML='';
+  document.getElementById('verifikasiModal').classList.add('open');
+}
+
+function doVerifikasiAbsen(approved){
+  const idx=MANUAL_ABSEN.findIndex(m=>m.id===_verifyId); if(idx<0)return;
+  MANUAL_ABSEN[idx].status=approved?'approved':'rejected';
+  saveManual();
+  closeModal('verifikasiModal');
+  renderAdmin();
+  renderPendingVerif();
+}
+
 </script>
 </body>
 </html>
