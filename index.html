@@ -1151,9 +1151,15 @@ async function seedFirestoreData(){
     await COL.config().doc('main').set(DEFAULT_CONFIG);
     USERS=[...DEFAULT_USERS.map(u=>({...u,email:userEmail(u.username)}))];
     CONFIG={...DEFAULT_CONFIG};
+    // Create Firebase Auth accounts for admin & SA users
+    for(const u of DEFAULT_USERS.filter(x=>x.isAdmin||isSuperAdmin(x))){
+      const em=userEmail(u.username);
+      await auth.createUserWithEmailAndPassword(em, u.pass)
+        .catch(e=>{ if(e.code!=='auth/email-already-in-use') console.warn(e); });
+    }
     hideLoading();
     document.getElementById('firstRunBanner').style.display='none';
-    alert('✅ Data default berhasil diupload ke Firebase! Pengguna sekarang bisa login.');
+    alert('✅ Setup berhasil! Data default sudah diupload ke Firebase.\n\nSemua petugas sekarang bisa login dari HP masing-masing.');
     renderBeranda();
   }catch(err){
     hideLoading();
@@ -1169,9 +1175,13 @@ function hideLoading(){ document.getElementById('fbLoading').style.display='none
 
 function afterLoginUI(){
   const user=STATE.user;
-  // Show first-run banner if SA and very few users
+  // Show first-run banner when SA logs in bootstrap mode (Firestore was empty)
   const banner=document.getElementById('firstRunBanner');
-  if(banner) banner.style.display=(isSuperAdmin(user)&&USERS.filter(u=>!u.isAdmin).length===0)?'block':'none';
+  if(banner){
+    // If USERS still contains default demo IDs (u1,u2,u3), Firestore hasn't been seeded
+    const isBootstrap=USERS.some(u=>u.id==='u1');
+    banner.style.display=(isSuperAdmin(user)&&isBootstrap)?'block':'none';
+  }
   const sa=isSuperAdmin(user);
   document.getElementById('page-login').classList.remove('active');
   document.getElementById('headerSub').textContent=CONFIG.namaPuskesmas;
@@ -1203,25 +1213,64 @@ async function doLogin(){
   if(!uname||!pass){alertEl.innerHTML=`<div class="alert alert-danger">Username dan password wajib diisi!</div>`;return;}
   alertEl.innerHTML=`<div class="alert" style="background:#f0fdf4;color:#166534">⏳ Sedang masuk...</div>`;
   showLoading('Memverifikasi akun...');
+
   try{
-    // Find user by username in Firestore
+    // ── BOOTSTRAP MODE ─────────────────────────────────────────
+    // Jika Firestore kosong, izinkan SA login langsung dari DEFAULT_USERS
+    // agar bisa melakukan setup awal (seed data ke Firestore)
+    let firestoreEmpty = false;
+    try{
+      const testSnap = await COL.users().limit(1).get();
+      firestoreEmpty = testSnap.empty;
+    }catch(e){ firestoreEmpty = true; }
+
+    if(firestoreEmpty){
+      // Cari di DEFAULT_USERS
+      const defUser = DEFAULT_USERS.find(u=>u.username.toLowerCase()===uname && u.pass===pass);
+      if(!defUser){
+        hideLoading();
+        alertEl.innerHTML=`<div class="alert alert-danger">❌ Username atau password salah (mode setup awal)!</div>`;
+        return;
+      }
+      if(!isSuperAdmin(defUser)){
+        hideLoading();
+        alertEl.innerHTML=`<div class="alert alert-warning">⚠️ Database belum disetup. Silakan login sebagai <b>Super Admin</b> untuk melakukan setup awal.</div>`;
+        return;
+      }
+      // SA bootstrap login — langsung masuk tanpa Firestore/Auth
+      STATE.user = {...defUser, email: userEmail(defUser.username)};
+      USERS = DEFAULT_USERS.map(u=>({...u, email:userEmail(u.username)}));
+      CONFIG = {...DEFAULT_CONFIG};
+      hideLoading();
+      afterLoginUI();
+      return;
+    }
+    // ── NORMAL LOGIN ────────────────────────────────────────────
     const snap=await COL.users().where('username','==',uname).limit(1).get();
-    if(snap.empty){alertEl.innerHTML=`<div class="alert alert-danger">❌ Username tidak ditemukan!</div>`;return;}
+    if(snap.empty){
+      hideLoading();
+      alertEl.innerHTML=`<div class="alert alert-danger">❌ Username tidak ditemukan!</div>`;
+      return;
+    }
     const userDoc=snap.docs[0];
     const user={id:userDoc.id,...userDoc.data()};
-    if(user.pass!==pass){alertEl.innerHTML=`<div class="alert alert-danger">❌ Password salah!</div>`;return;}
-    // Sign in to Firebase Auth (using stable generated email)
+    if(user.pass!==pass){
+      hideLoading();
+      alertEl.innerHTML=`<div class="alert alert-danger">❌ Password salah!</div>`;
+      return;
+    }
+    // Sign in / create Firebase Auth account
     const email=userEmail(user.username);
     user.email=email;
     try{
       await auth.signInWithEmailAndPassword(email, pass);
     }catch(e){
-      if(e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'||e.code==='auth/invalid-email'){
+      if(['auth/user-not-found','auth/invalid-credential','auth/invalid-email','auth/configuration-not-found'].includes(e.code)){
         await auth.createUserWithEmailAndPassword(email, pass);
-      } else if(e.code!=='auth/wrong-password'){ throw e; }
+      }else if(e.code!=='auth/wrong-password'){ throw e; }
     }
     STATE.user=user;
-    showLoading('Memuat data absensi...');
+    showLoading('Memuat data...');
     await loadAllData();
     hideLoading();
     afterLoginUI();
@@ -1933,7 +1982,6 @@ function renderRekapBulanan(){
 }
 
 async function exportRekapBulananPDF(){
-  const data=getRekapBulananData();
   showLoading('Menyiapkan PDF rekap...');
   const bulan=parseInt(document.getElementById('rbBulan').value);
   const tahun=parseInt(document.getElementById('rbTahun').value);
@@ -3320,13 +3368,16 @@ async function doGantiPasswordAdmin(){
 
   // Firebase Auth state listener — restore session automatically
   auth.onAuthStateChanged(async(fbUser)=>{
-    if(!fbUser) return;
+    if(!fbUser || STATE.user) return; // skip if already logged in (bootstrap)
     const emailParts = fbUser.email?.split('@');
     const uname = (emailParts?.[1] === 'eabsensi.puskesmas.app') ? emailParts[0] : null;
     if(!uname) return;
     try{
+      // Check Firestore not empty before restoring
+      const testSnap = await COL.users().limit(1).get();
+      if(testSnap.empty) return; // Firestore not seeded yet
       const snap = await COL.users().where('username','==',uname).limit(1).get();
-      if(!snap.empty && !STATE.user){
+      if(!snap.empty){
         const ud = snap.docs[0];
         STATE.user = {id:ud.id, ...ud.data()};
         showLoading('Memulihkan sesi...');
