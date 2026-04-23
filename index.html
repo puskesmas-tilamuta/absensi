@@ -205,7 +205,17 @@
     .loc-mode-btn{flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:.75rem;font-weight:700;cursor:pointer;text-align:center;transition:all .15s;color:var(--muted);}
     .loc-mode-btn.active{background:var(--green);border-color:var(--green);color:#fff;}
     .pending-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:4px;}
+
+    /* Loading overlay */
+    .fb-loading{position:fixed;inset:0;background:rgba(255,255,255,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
+    .fb-spinner{width:44px;height:44px;border:4px solid var(--green-light);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .fb-loading-text{margin-top:14px;font-size:.9rem;font-weight:600;color:var(--green-dark);}
   </style>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -239,7 +249,6 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
         Masuk
       </button>
-      <p style="text-align:center;font-size:.72rem;color:var(--muted);margin-top:12px;">Demo: <b>petugas1 / 1234</b> &nbsp;|&nbsp; Admin: <b>admin / admin123</b></p>
     </div>
     <div style="text-align:center;margin-top:16px;"><span class="puskesmas-pin">📍 Lokasi Puskesmas terkonfigurasi</span></div>
   </div>
@@ -259,6 +268,13 @@
       <button class="btn btn-warning btn-sm" onclick="openSaEditJamModal()" style="width:100%">⏱️ Edit Jam Absensi Saya</button>
     </div>
     <div id="todayAbsenAlert"></div>
+    
+    <!-- First run setup prompt -->
+    <div id="firstRunBanner" style="display:none;background:linear-gradient(135deg,#065f46,#059669);color:#fff;padding:14px 16px;border-radius:14px;margin-bottom:14px;font-size:.83rem">
+      <div style="font-weight:700;margin-bottom:6px">🚀 Setup Awal Firebase</div>
+      <div style="margin-bottom:10px;opacity:.9">Belum ada data pengguna di Firestore. Klik tombol di bawah untuk menyalin data default ke Firebase.</div>
+      <button class="btn btn-sm" style="background:#fff;color:#065f46;font-weight:700" onclick="seedFirestoreData()">⬆️ Upload Data Default ke Firebase</button>
+    </div>
     <div class="card" id="cardAbsenMasuk">
       <div class="card-title">Absen Masuk</div>
       <div class="steps"><div class="step active" id="sm1"></div><div class="step" id="sm2"></div><div class="step" id="sm3"></div></div>
@@ -576,13 +592,71 @@
       <div class="setting-row"><div><div class="setting-label">Status Hari Ini</div></div><div id="profileStatus">-</div></div>
       <div class="setting-row"><div><div class="setting-label">Total Hadir Bulan Ini</div></div><div class="setting-val" id="profileHadir">0 hari</div></div>
     </div>
-    <button class="btn btn-danger" onclick="doLogout()" style="margin-top:8px">
+    <button class="btn btn-secondary" onclick="openGantiPasswordModal()" style="margin-top:8px;margin-bottom:8px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Ubah Password Saya
+    </button>
+    <div id="saAdminPassSection" style="display:none">
+      <button class="btn btn-secondary" onclick="openGantiPasswordAdminModal()" style="margin-bottom:8px;border-color:#4338ca;color:#4338ca">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Ubah Password Admin Lain
+      </button>
+    </div>
+    <button class="btn btn-danger" onclick="doLogout()" style="margin-top:0">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       Keluar
     </button>
   </div>
 
 </main>
+
+<!-- MODAL: UBAH PASSWORD SENDIRI -->
+<div class="modal-bg" id="gantiPassModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🔒 Ubah Password Saya</div>
+    <div class="input-group">
+      <label>Password Lama</label>
+      <input type="password" id="gpOld" placeholder="Password saat ini"/>
+    </div>
+    <div class="input-group">
+      <label>Password Baru</label>
+      <input type="password" id="gpNew" placeholder="Password baru"/>
+    </div>
+    <div class="input-group">
+      <label>Konfirmasi Password Baru</label>
+      <input type="password" id="gpConfirm" placeholder="Ulangi password baru"/>
+    </div>
+    <div id="gantiPassAlert"></div>
+    <button class="btn btn-primary" onclick="doGantiPasswordSendiri()" style="margin-bottom:10px">💾 Simpan Password</button>
+    <button class="btn btn-secondary" onclick="closeModal('gantiPassModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL: SA UBAH PASSWORD ADMIN -->
+<div class="modal-bg" id="gantiPassAdminModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:#4338ca">🔑 Ubah Password Admin</div>
+    <div class="input-group">
+      <label>Pilih Admin</label>
+      <select id="gpAdminSelect">
+        <option value="">— Pilih Admin —</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Password Baru</label>
+      <input type="password" id="gpAdminNew" placeholder="Password baru untuk admin"/>
+    </div>
+    <div class="input-group">
+      <label>Konfirmasi Password Baru</label>
+      <input type="password" id="gpAdminConfirm" placeholder="Ulangi password baru"/>
+    </div>
+    <div id="gantiPassAdminAlert"></div>
+    <button class="btn btn-primary" onclick="doGantiPasswordAdmin()" style="margin-bottom:10px">💾 Simpan Password</button>
+    <button class="btn btn-secondary" onclick="closeModal('gantiPassAdminModal')">Batal</button>
+  </div>
+</div>
 
 <!-- MODAL: PENGAJUAN DIRI -->
 <div class="modal-bg" id="pengajuanModal">
@@ -860,8 +934,39 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// STORAGE
+// FIREBASE INIT
 // ═══════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyCj1NhZGrclAgHpxlONisjgncNE-TRmSS0",
+  authDomain: "puskesmas-tilamuta.firebaseapp.com",
+  projectId: "puskesmas-tilamuta",
+  storageBucket: "puskesmas-tilamuta.firebasestorage.app",
+  messagingSenderId: "623603559277",
+  appId: "1:623603559277:web:8e9aa4587a05b65eb10864"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// Firestore collection helpers
+const COL = {
+  users    : ()=> db.collection('users'),
+  config   : ()=> db.collection('config'),
+  absensi  : ()=> db.collection('absensi'),
+  jurnal   : ()=> db.collection('jurnal'),
+  pustu    : ()=> db.collection('pustu'),
+  posyandu : ()=> db.collection('posyandu'),
+  events   : ()=> db.collection('events'),
+  jadwal   : ()=> db.collection('jadwal_jaga'),
+  penugas  : ()=> db.collection('penugasan_py'),
+  manual   : ()=> db.collection('manual_absen'),
+  pengajuan: ()=> db.collection('pengajuan'),
+};
+async function fsSet(col,id,data){ await col().doc(id).set(data,{merge:true}); }
+async function fsDel(col,id){ await col().doc(id).delete(); }
+async function fsGetAll(col){ const s=await col().get(); return s.docs.map(d=>({id:d.id,...d.data()})); }
+
+// Local storage only for photos (not synced)
 const LS = {
   get:(k,d)=>{ try{ const v=localStorage.getItem(k); return v!==null?JSON.parse(v):d; }catch{return d;} },
   set:(k,v)=>{ localStorage.setItem(k,JSON.stringify(v)); }
@@ -889,24 +994,17 @@ const DEFAULT_USERS = [
 ];
 const DEFAULT_CONFIG = {namaPuskesmas:'UPTD Puskesmas Tilamuta', lat:-7.2895, lng:112.7867, radius:150, jamMasuk:'08:00'};
 
-let USERS   = LS.get('eab_users',   DEFAULT_USERS);
-let CONFIG  = LS.get('eab_config',  DEFAULT_CONFIG);
-let ABSENSI = LS.get('eab_absensi', []);
-let JURNAL_DATA = LS.get('eab_jurnal', []); // [{id, uid, bulan, tahun, kepala, kepalaDetail, columns, rows}]
-let PUSTU_LIST  = LS.get('eab_pustu',  []); // [{id,nama,alamat,lat,lng,radius}]
-let JADWAL_JAGA = LS.get('eab_jadwal', []); // [{id,uid,tanggal,jamMasuk,jamSelesai,absenMasuk,absenPulang}]
-let POSYANDU_LIST   = LS.get('eab_posyandu', []); // [{id,nama,alamat,lat,lng,radius,mode}]
-let EVENT_LIST      = LS.get('eab_events',  []); // [{id,nama,alamat,lat,lng,radius,mode,start,end,replaceAbsen,petugas:[uid]}]
-let PENUGASAN_PY    = LS.get('eab_penugas_py', []); // [{id,uid,posyanduId,start,end}]
-let MANUAL_ABSEN    = LS.get('eab_manual',  []); // [{id,uid,tanggal,tipe,refId,keterangan,status,jam,lokasi}]
-const savePosyandu  = ()=> LS.set('eab_posyandu', POSYANDU_LIST);
-const saveEvent     = ()=> LS.set('eab_events',   EVENT_LIST);
-const savePenugasanPy=()=> LS.set('eab_penugas_py',PENUGASAN_PY);
-let PENGAJUAN_LIST  = LS.get('eab_pengajuan', []); // [{id,uid,tipe,refId,tanggal,jamMasuk,jamSelesai,keterangan,status}]
-const savePengajuan = ()=> LS.set('eab_pengajuan', PENGAJUAN_LIST);
-const saveManual    = ()=> LS.set('eab_manual',   MANUAL_ABSEN);
-const savePustu     = ()=> LS.set('eab_pustu',  PUSTU_LIST);
-const saveJadwal    = ()=> LS.set('eab_jadwal', JADWAL_JAGA);
+let USERS       = [];
+let CONFIG      = {...DEFAULT_CONFIG};
+let ABSENSI     = [];
+let JURNAL_DATA = [];
+let PUSTU_LIST  = [];
+let JADWAL_JAGA = [];
+let POSYANDU_LIST  = [];
+let EVENT_LIST     = [];
+let PENUGASAN_PY   = [];
+let MANUAL_ABSEN   = [];
+let PENGAJUAN_LIST = [];
 
 let STATE = {
   user: null,
@@ -921,10 +1019,30 @@ let STATE = {
   editingPustuId:null,
 };
 
-const saveUsers      = ()=> LS.set('eab_users',   USERS);
-const saveAbsensi    = ()=> LS.set('eab_absensi', ABSENSI);
-const saveConfigData = ()=> LS.set('eab_config',  CONFIG);
-const saveJurnal     = ()=> LS.set('eab_jurnal',  JURNAL_DATA);
+// ── Firestore save helpers ────────────────────────────────
+const saveUsers      = async()=>{ for(const u of USERS) await fsSet(COL.users, u.id, u); };
+const saveAbsensi    = async()=>{ for(const a of ABSENSI) await fsSet(COL.absensi, a.uid+'_'+a.tanggal, a); };
+const saveConfigData = async()=>{ await fsSet(COL.config, 'main', CONFIG); };
+const saveJurnal     = async()=>{ for(const j of JURNAL_DATA) await fsSet(COL.jurnal, j.id, j); };
+const savePustu      = async()=>{ for(const p of PUSTU_LIST) await fsSet(COL.pustu, p.id, p); };
+const saveJadwal     = async()=>{ for(const j of JADWAL_JAGA) await fsSet(COL.jadwal, j.id, j); };
+const savePosyandu   = async()=>{ for(const p of POSYANDU_LIST) await fsSet(COL.posyandu, p.id, p); };
+const saveEvent      = async()=>{ for(const e of EVENT_LIST) await fsSet(COL.events, e.id, e); };
+const savePenugasanPy= async()=>{ for(const p of PENUGASAN_PY) await fsSet(COL.penugas, p.id, p); };
+const saveManual     = async()=>{ for(const m of MANUAL_ABSEN) await fsSet(COL.manual, m.id, m); };
+const savePengajuan  = async()=>{ for(const p of PENGAJUAN_LIST) await fsSet(COL.pengajuan, p.id, p); };
+
+// Single-item save helpers (more efficient)
+const saveUser    = async(u)=> fsSet(COL.users, u.id, u);
+const saveAbsen   = async(a)=> fsSet(COL.absensi, a.uid+'_'+a.tanggal, a);
+const saveJurnalOne=(j)=> fsSet(COL.jurnal, j.id, j);
+const savePustuOne=(p)=> fsSet(COL.pustu, p.id, p);
+const saveJadwalOne=(j)=> fsSet(COL.jadwal, j.id, j);
+const savePosyanduOne=(p)=> fsSet(COL.posyandu, p.id, p);
+const saveEventOne=(e)=> fsSet(COL.events, e.id, e);
+const savePenugasanOne=(p)=> fsSet(COL.penugas, p.id, p);
+const saveManualOne=(m)=> fsSet(COL.manual, m.id, m);
+const savePengajuanOne=(p)=> fsSet(COL.pengajuan, p.id, p);
 
 // ═══════════════════════════════════════════════════════════
 // CLOCK
@@ -963,28 +1081,107 @@ document.querySelectorAll('.modal-bg').forEach(m=>{
 // ═══════════════════════════════════════════════════════════
 // LOGIN / LOGOUT
 // ═══════════════════════════════════════════════════════════
-function doLogin(){
-  const uname=document.getElementById('loginUser').value.trim().toLowerCase();
-  const pass=document.getElementById('loginPass').value;
-  USERS = LS.get('eab_users', DEFAULT_USERS);
-  const user=USERS.find(u=>u.username.toLowerCase()===uname && u.pass===pass);
-  if(!user){
-    document.getElementById('loginAlert').innerHTML=`<div class="alert alert-danger">❌ Username atau password salah!</div>`;
-    return;
+// ─── LOAD ALL DATA FROM FIRESTORE ────────────────────────
+async function loadAllData(){
+  const today=todayKey();
+  const [y,m]=today.split('-').map(Number);
+  const bulanStr=String(m).padStart(2,'0');
+  const monthPrefix=`${y}-${bulanStr}`;
+
+  const [usersSnap, configSnap, absensiSnap, pustuSnap, posyanduSnap,
+         eventSnap, jadwalSnap, penugasSnap, manualSnap, pengajuanSnap] = await Promise.all([
+    COL.users().get(),
+    COL.config().doc('main').get(),
+    COL.absensi().where('tanggal','>=',monthPrefix+'-01').where('tanggal','<=',monthPrefix+'-31').get(),
+    COL.pustu().get(),
+    COL.posyandu().get(),
+    COL.events().get(),
+    COL.jadwal().where('tanggal','>=',today).get(),
+    COL.penugas().where('end','>=',today).get(),
+    COL.manual().where('tanggal','>=',monthPrefix+'-01').get(),
+    COL.pengajuan().where('status','==','pending').get(),
+  ]);
+
+  USERS        = usersSnap.docs.map(d=>({id:d.id,...d.data()}));
+  CONFIG       = configSnap.exists ? {id:'main',...configSnap.data()} : {...DEFAULT_CONFIG};
+  ABSENSI      = absensiSnap.docs.map(d=>({id:d.id,...d.data()}));
+  PUSTU_LIST   = pustuSnap.docs.map(d=>({id:d.id,...d.data()}));
+  POSYANDU_LIST= posyanduSnap.docs.map(d=>({id:d.id,...d.data()}));
+  EVENT_LIST   = eventSnap.docs.map(d=>({id:d.id,...d.data()}));
+  JADWAL_JAGA  = jadwalSnap.docs.map(d=>({id:d.id,...d.data()}));
+  PENUGASAN_PY = penugasSnap.docs.map(d=>({id:d.id,...d.data()}));
+  MANUAL_ABSEN = manualSnap.docs.map(d=>({id:d.id,...d.data()}));
+  PENGAJUAN_LIST=pengajuanSnap.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+async function loadAbsensiForMonth(bulan, tahun){
+  const bulanStr=String(bulan+1).padStart(2,'0');
+  const snap=await COL.absensi()
+    .where('tanggal','>=',`${tahun}-${bulanStr}-01`)
+    .where('tanggal','<=',`${tahun}-${bulanStr}-31`).get();
+  ABSENSI=snap.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+async function loadAllAbsensi(){
+  const snap=await COL.absensi().get();
+  ABSENSI=snap.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+async function loadJurnalForUser(uid){
+  const snap=await COL.jurnal().where('uid','==',uid).get();
+  JURNAL_DATA=snap.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+
+
+
+// ═══════════════════════════════════════════════════════════
+// FIRST-RUN: Seed default data to Firestore
+// ═══════════════════════════════════════════════════════════
+async function seedFirestoreData(){
+  if(!confirm('Upload data default (users, config) ke Firebase? Ini hanya perlu dilakukan sekali.')) return;
+  showLoading('Menyiapkan data awal...');
+  try{
+    // Upload default users
+    for(const u of DEFAULT_USERS){
+      const userWithEmail={...u, email:userEmail(u.username)};
+      await COL.users().doc(u.id).set(userWithEmail);
+    }
+    // Upload default config
+    await COL.config().doc('main').set(DEFAULT_CONFIG);
+    USERS=[...DEFAULT_USERS.map(u=>({...u,email:userEmail(u.username)}))];
+    CONFIG={...DEFAULT_CONFIG};
+    hideLoading();
+    document.getElementById('firstRunBanner').style.display='none';
+    alert('✅ Data default berhasil diupload ke Firebase! Pengguna sekarang bisa login.');
+    renderBeranda();
+  }catch(err){
+    hideLoading();
+    alert('❌ Gagal: '+err.message);
   }
-  STATE.user=user;
+}
+
+function showLoading(text='Memuat data...'){
+  document.getElementById('fbLoading').style.display='flex';
+  document.getElementById('fbLoadingText').textContent=text;
+}
+function hideLoading(){ document.getElementById('fbLoading').style.display='none'; }
+
+function afterLoginUI(){
+  const user=STATE.user;
+  // Show first-run banner if SA and very few users
+  const banner=document.getElementById('firstRunBanner');
+  if(banner) banner.style.display=(isSuperAdmin(user)&&USERS.filter(u=>!u.isAdmin).length===0)?'block':'none';
   const sa=isSuperAdmin(user);
+  document.getElementById('page-login').classList.remove('active');
   document.getElementById('headerSub').textContent=CONFIG.namaPuskesmas;
   document.getElementById('avatarBtn').textContent=user.nama[0].toUpperCase();
   document.getElementById('mainNav').style.display='block';
-  // nav visibility
   document.getElementById('nav-admin').style.display=(user.isAdmin||sa)?'flex':'none';
   document.getElementById('nav-jurnal').style.display=sa?'flex':'none';
-  // setup admin tabs for SA
   if(sa){
     document.getElementById('adminPageTitle').textContent='Dashboard';
     const bar=document.getElementById('adminTabsBar');
-    // add extra tabs if not exist
     if(!document.getElementById('aTab-semua-rekap')){
       const t1=document.createElement('div');
       t1.className='admin-tab'; t1.id='aTab-semua-rekap';
@@ -996,7 +1193,47 @@ function doLogin(){
   showPage('beranda');
 }
 
-function doLogout(){
+// Generate a stable email from username for Firebase Auth
+function userEmail(username){ return username.toLowerCase().replace(/[^a-z0-9]/g,'')+'@eabsensi.puskesmas.app'; }
+
+async function doLogin(){
+  const uname=document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass=document.getElementById('loginPass').value;
+  const alertEl=document.getElementById('loginAlert');
+  if(!uname||!pass){alertEl.innerHTML=`<div class="alert alert-danger">Username dan password wajib diisi!</div>`;return;}
+  alertEl.innerHTML=`<div class="alert" style="background:#f0fdf4;color:#166534">⏳ Sedang masuk...</div>`;
+  showLoading('Memverifikasi akun...');
+  try{
+    // Find user by username in Firestore
+    const snap=await COL.users().where('username','==',uname).limit(1).get();
+    if(snap.empty){alertEl.innerHTML=`<div class="alert alert-danger">❌ Username tidak ditemukan!</div>`;return;}
+    const userDoc=snap.docs[0];
+    const user={id:userDoc.id,...userDoc.data()};
+    if(user.pass!==pass){alertEl.innerHTML=`<div class="alert alert-danger">❌ Password salah!</div>`;return;}
+    // Sign in to Firebase Auth (using stable generated email)
+    const email=userEmail(user.username);
+    user.email=email;
+    try{
+      await auth.signInWithEmailAndPassword(email, pass);
+    }catch(e){
+      if(e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'||e.code==='auth/invalid-email'){
+        await auth.createUserWithEmailAndPassword(email, pass);
+      } else if(e.code!=='auth/wrong-password'){ throw e; }
+    }
+    STATE.user=user;
+    showLoading('Memuat data absensi...');
+    await loadAllData();
+    hideLoading();
+    afterLoginUI();
+  }catch(err){
+    hideLoading();
+    alertEl.innerHTML=`<div class="alert alert-danger">❌ Login gagal: ${err.message}</div>`;
+  }
+}
+
+
+async function doLogout(){
+  await auth.signOut().catch(()=>{});
   stopCamera();
   STATE.user=null; STATE.masukStep=0; STATE.pulangStep=0;
   document.getElementById('mainNav').style.display='none';
@@ -1280,7 +1517,7 @@ function renderLocBox(loc){
 // ═══════════════════════════════════════════════════════════
 // SUBMIT ABSEN
 // ═══════════════════════════════════════════════════════════
-function submitAbsen(type){
+async function submitAbsen(type){
   const now=new Date();
   const jam=now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
   const tanggal=todayKey();
@@ -1374,7 +1611,7 @@ function captureJagaPhoto(){
   STATE.jagaMalamStep=2;renderJagaMalamStep();
 }
 
-function submitJagaAbsen(){
+async function submitJagaAbsen(){
   const now=new Date();
   const jam=now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
   const jIdx=JADWAL_JAGA.findIndex(j=>j.id===STATE.currentJagaId);
@@ -1382,7 +1619,7 @@ function submitJagaAbsen(){
   const absenData={jam,foto:STATE.photoJaga,lokasi:STATE.locJaga.lokasi||CONFIG.namaPuskesmas};
   if(STATE.jagaType==='masuk') JADWAL_JAGA[jIdx].absenMasuk=absenData;
   else JADWAL_JAGA[jIdx].absenPulang=absenData;
-  saveJadwal();
+  await saveJadwalOne(JADWAL_JAGA[jIdx]);
   closeModal('jagaAbsenModal');
   stopCamera();
   STATE.jagaMalamStep=0; STATE.photoJaga=null; STATE.locJaga=null;
@@ -1434,7 +1671,7 @@ function openPustuModal(id){
   document.getElementById('pustuModal').classList.add('open');
 }
 
-function doSavePustu(){
+async function doSavePustu(){
   const nama=document.getElementById('pNama').value.trim();
   const alamat=document.getElementById('pAlamat').value.trim();
   const lat=parseFloat(document.getElementById('pLat').value);
@@ -1448,14 +1685,15 @@ function doSavePustu(){
     const idx=PUSTU_LIST.findIndex(p=>p.id===STATE.editingPustuId);
     if(idx>=0) PUSTU_LIST[idx]={...PUSTU_LIST[idx],nama,alamat,lat,lng,radius};
   }
-  savePustu();
+  const p2=PUSTU_LIST.find(x=>x.id===(STATE.editingPustuId||PUSTU_LIST[PUSTU_LIST.length-1]?.id));
+  if(p2) await savePustuOne(p2);
   closeModal('pustuModal');
   renderPustuMgmt();
   // Update pustu assign dropdowns
   populatePustuAssign();
 }
 
-function deletePustu(id){
+async function deletePustu(id){
   if(!confirm('Hapus Pustu ini?')) return;
   PUSTU_LIST=PUSTU_LIST.filter(p=>p.id!==id);
   savePustu();
@@ -1492,7 +1730,7 @@ function initJadwalJaga(){
   renderJadwalJagaList();
 }
 
-function doSaveJadwalJaga(){
+async function doSaveJadwalJaga(){
   const uid=document.getElementById('jjPetugasSelect').value;
   const tanggal=document.getElementById('jjTanggal').value;
   const jamMasuk=document.getElementById('jjJamMasuk').value;
@@ -1502,8 +1740,9 @@ function doSaveJadwalJaga(){
   // Check if already exists
   const existing=JADWAL_JAGA.find(j=>j.uid===uid&&j.tanggal===tanggal);
   if(existing){alertEl.innerHTML=`<div class="alert alert-warning">Petugas ini sudah memiliki jadwal jaga pada tanggal tersebut.</div>`;return;}
-  JADWAL_JAGA.push({id:genId(),uid,tanggal,jamMasuk,jamSelesai,absenMasuk:null,absenPulang:null});
-  saveJadwal();
+  const nj={id:genId(),uid,tanggal,jamMasuk,jamSelesai,absenMasuk:null,absenPulang:null};
+  JADWAL_JAGA.push(nj);
+  await saveJadwalOne(nj);
   alertEl.innerHTML=`<div class="alert alert-success">✅ Jadwal jaga berhasil disimpan!</div>`;
   setTimeout(()=>{alertEl.innerHTML='';},2000);
   renderJadwalJagaList();
@@ -1537,10 +1776,10 @@ function renderJadwalJagaList(){
   }).join('');
 }
 
-function deleteJadwalJaga(id){
+async function deleteJadwalJaga(id){
   if(!confirm('Hapus jadwal jaga ini?')) return;
   JADWAL_JAGA=JADWAL_JAGA.filter(j=>j.id!==id);
-  saveJadwal();
+  await fsDel(COL.jadwal,id);
   renderJadwalJagaList();
 }
 
@@ -1599,7 +1838,7 @@ function switchAdminTab(name,el){
 // ═══════════════════════════════════════════════════════════
 // REKAP BULANAN (Admin)
 // ═══════════════════════════════════════════════════════════
-function initRekapBulanan(){
+async function initRekapBulanan(){
   const now=new Date();
   document.getElementById('rbBulan').value=now.getMonth();
   document.getElementById('rbTahun').value=now.getFullYear();
@@ -1610,6 +1849,14 @@ function initRekapBulanan(){
   const jKD=document.getElementById('jurnalKepalaDetail');
   if(rbK&&!rbK.value&&jK&&jK.value) rbK.value=jK.value;
   if(rbKD&&!rbKD.value&&jKD&&jKD.value) rbKD.value=jKD.value;
+  // Load absensi for selected month
+  showLoading('Memuat rekap...');
+  try{
+    const bulan=parseInt(document.getElementById('rbBulan').value);
+    const tahun=parseInt(document.getElementById('rbTahun').value);
+    await loadAbsensiForMonth(bulan, tahun);
+  }catch(e){console.warn(e);}
+  hideLoading();
   // Populate petugas filter
   const sel=document.getElementById('rbPetugasFilter');
   sel.innerHTML='<option value="">— Semua Petugas —</option>';
@@ -1685,10 +1932,14 @@ function renderRekapBulanan(){
     </div>`).join('')}`;
 }
 
-function exportRekapBulananPDF(){
+async function exportRekapBulananPDF(){
   const data=getRekapBulananData();
+  showLoading('Menyiapkan PDF rekap...');
   const bulan=parseInt(document.getElementById('rbBulan').value);
   const tahun=parseInt(document.getElementById('rbTahun').value);
+  await loadAbsensiForMonth(bulan, tahun);
+  hideLoading();
+  const data=getRekapBulananData();
   const bulanTahun=formatBulanTahun(bulan,tahun);
   if(!data.length){alert('Tidak ada data untuk diekspor.');return;}
 
@@ -1871,7 +2122,7 @@ function filterSaRekap(f,el){
   STATE.saRekapFilter=f;
   renderSaRekap();
 }
-function renderSaRekap(){
+async function renderSaRekap(){ showLoading('Memuat rekap...'); await loadAllAbsensi(); hideLoading();
   const uidFilter=document.getElementById('saRekapUserFilter')?.value||'';
   let list=[...ABSENSI].sort((a,b)=>b.tanggal.localeCompare(a.tanggal));
   if(uidFilter) list=list.filter(a=>a.uid===uidFilter);
@@ -2004,7 +2255,7 @@ function openUserModal(id){
   document.getElementById('userModal').classList.add('open');
 }
 
-function doSaveUser(){
+async function doSaveUser(){
   const nama    =document.getElementById('uNama').value.trim();
   const username=document.getElementById('uUsername').value.trim().toLowerCase();
   const pass    =document.getElementById('uPass').value;
@@ -2026,7 +2277,8 @@ function doSaveUser(){
     }
     const isPustuNew=document.getElementById('uIsPustu').checked;
     const pustuIdNew=isPustuNew?document.getElementById('uPustuAssign').value:'';
-    USERS.push({id:genId(),username,pass,nama,role,unit,isAdmin:false,isPustu:isPustuNew,pustuId:pustuIdNew});
+    const newId=genId();
+    USERS.push({id:newId,username,pass,nama,role,unit,isAdmin:false,isPustu:isPustuNew,pustuId:pustuIdNew,email:userEmail(username)});
   }else{
     const idx=USERS.findIndex(u=>u.id===STATE.editingUserId); if(idx===-1)return;
     const targetUser=USERS[idx];
@@ -2044,7 +2296,10 @@ function doSaveUser(){
       USERS[idx].pass=pass;
     }
   }
-  saveUsers();
+  const savedUser=STATE.editingUserId
+    ? USERS.find(u=>u.id===STATE.editingUserId)
+    : USERS[USERS.length-1];
+  if(savedUser) await saveUser(savedUser);
   closeModal('userModal');
   renderUserMgmt();
   renderAdmin();
@@ -2089,7 +2344,7 @@ function openConfigModal(){
   document.getElementById('cfgAlert').innerHTML='';
   document.getElementById('configModal').classList.add('open');
 }
-function doSaveConfig(){
+async function doSaveConfig(){
   const nama=document.getElementById('cfgInputNama').value.trim();
   const lat=parseFloat(document.getElementById('cfgInputLat').value);
   const lng=parseFloat(document.getElementById('cfgInputLng').value);
@@ -2099,7 +2354,7 @@ function doSaveConfig(){
     document.getElementById('cfgAlert').innerHTML=`<div class="alert alert-danger">Semua field harus diisi!</div>`;return;
   }
   CONFIG={namaPuskesmas:nama,lat,lng,radius,jamMasuk:jam};
-  saveConfigData();
+  await saveConfigData();
   document.getElementById('headerSub').textContent=nama;
   closeModal('configModal');
   renderConfigDisplay();
@@ -2111,6 +2366,9 @@ function doSaveConfig(){
 function renderProfil(){
   if(!STATE.user)return;
   const u=STATE.user;
+  // Show SA-only admin password button
+  const saSection=document.getElementById('saAdminPassSection');
+  if(saSection) saSection.style.display=isSuperAdmin(u)?'block':'none';
   document.getElementById('profileAvatar').textContent=u.nama[0].toUpperCase();
   document.getElementById('profileName').textContent=u.nama;
   document.getElementById('profileRole').textContent=u.role;
@@ -2131,7 +2389,7 @@ function renderProfil(){
 // ═══════════════════════════════════════════════════════════
 let JURNAL_COLUMNS = ['Hari / Tanggal','Uraian Kegiatan','Hasil','Ket'];
 
-function initJurnalPage(){
+async function initJurnalPage(){ showLoading('Memuat jurnal...'); await loadJurnalForUser(STATE.user?.id||''||'?'); hideLoading();
   // populate petugas dropdown
   const sel=document.getElementById('jurnalPetugasSelect');
   sel.innerHTML='<option value="">— Pilih Petugas —</option>';
@@ -2268,7 +2526,7 @@ function removeJurnalRow(ri){
 }
 
 // ─── CETAK / EXPORT PDF (jsPDF — no browser header/footer) ───
-function cetakJurnal(){
+async function cetakJurnal(){
   const uid=document.getElementById('jurnalPetugasSelect').value;
   const bulan=parseInt(document.getElementById('jurnalBulan').value);
   const tahun=parseInt(document.getElementById('jurnalTahun').value);
@@ -2369,7 +2627,7 @@ function openSaEditJamModal(){
   document.getElementById('saJamTanggalInput').value=todayKey();
   document.getElementById('saEditJamModal').classList.add('open');
 }
-function doSaEditJam(){
+async function doSaEditJam(){
   const tanggal=document.getElementById('saJamTanggalInput').value;
   const jamMasuk=document.getElementById('saJamMasukInput').value.trim();
   const jamPulang=document.getElementById('saJamPulangInput').value.trim();
@@ -2389,7 +2647,7 @@ function doSaEditJam(){
     if(!rec.pulang) rec.pulang={jam:jamPulang,lat:0,lng:0,distance:0,foto:null};
     else rec.pulang.jam=jamPulang;
   }
-  saveAbsensi();
+  await saveAbsen(rec);
   closeModal('saEditJamModal');
   renderBeranda();
   alert('✅ Jam absensi berhasil diubah!');
@@ -2440,7 +2698,7 @@ function openPosyanduModal(id){
   document.getElementById('posyanduModal').classList.add('open');
 }
 
-function doSavePosyandu(){
+async function doSavePosyandu(){
   const nama=document.getElementById('pyNama').value.trim();
   const alamat=document.getElementById('pyAlamat').value.trim();
   const lat=parseFloat(document.getElementById('pyLat').value);
@@ -2456,17 +2714,18 @@ function doSavePosyandu(){
     const idx=POSYANDU_LIST.findIndex(p=>p.id===_editingPosyanduId);
     if(idx>=0) POSYANDU_LIST[idx]={...POSYANDU_LIST[idx],nama,alamat,lat:lat||0,lng:lng||0,radius,mode};
   }
-  savePosyandu();
+  const p3=POSYANDU_LIST.find(x=>x.id===(_editingPosyanduId||POSYANDU_LIST[POSYANDU_LIST.length-1]?.id));
+  if(p3) await savePosyanduOne(p3);
   closeModal('posyanduModal');
   renderPosyanduMgmt();
   populatePosyanduAssignDropdowns();
 }
 
-function deletePosyandu(id){
+async function deletePosyandu(id){
   if(!confirm('Hapus Posyandu ini?')) return;
   POSYANDU_LIST=POSYANDU_LIST.filter(p=>p.id!==id);
   PENUGASAN_PY=PENUGASAN_PY.filter(p=>p.posyanduId!==id);
-  savePosyandu(); savePenugasanPy();
+  await fsDel(COL.posyandu,id);
   renderPosyanduMgmt();
 }
 
@@ -2491,7 +2750,7 @@ function populatePosyanduAssignDropdowns(){
   });
 }
 
-function doSavePenugasanPosyandu(){
+async function doSavePenugasanPosyandu(){
   const uid=document.getElementById('pyAssignUser').value;
   const posyanduId=document.getElementById('pyAssignPosyandu').value;
   const start=document.getElementById('pyAssignStart').value;
@@ -2499,8 +2758,9 @@ function doSavePenugasanPosyandu(){
   const alertEl=document.getElementById('pyAssignAlert');
   if(!uid||!posyanduId||!start||!end){alertEl.innerHTML=`<div class="alert alert-danger">Semua field wajib diisi!</div>`;return;}
   if(end<start){alertEl.innerHTML=`<div class="alert alert-danger">Tanggal selesai harus setelah tanggal mulai!</div>`;return;}
-  PENUGASAN_PY.push({id:genId(),uid,posyanduId,start,end});
-  savePenugasanPy();
+  const np={id:genId(),uid,posyanduId,start,end};
+  PENUGASAN_PY.push(np);
+  await savePenugasanOne(np);
   alertEl.innerHTML=`<div class="alert alert-success">✅ Penugasan berhasil disimpan!</div>`;
   setTimeout(()=>{alertEl.innerHTML='';},2000);
   renderPenugasanPosyanduList();
@@ -2596,7 +2856,7 @@ function openEventModal(id){
   document.getElementById('eventModal').classList.add('open');
 }
 
-function doSaveEvent(){
+async function doSaveEvent(){
   const nama=document.getElementById('evNama').value.trim();
   const alamat=document.getElementById('evAlamat').value.trim();
   const lat=parseFloat(document.getElementById('evLat').value);
@@ -2617,15 +2877,16 @@ function doSaveEvent(){
     const idx=EVENT_LIST.findIndex(e=>e.id===_editingEventId);
     if(idx>=0) EVENT_LIST[idx]={...EVENT_LIST[idx],...data};
   }
-  saveEvent();
+  const ev2=EVENT_LIST.find(e=>e.id===(_editingEventId||EVENT_LIST[EVENT_LIST.length-1]?.id));
+  if(ev2) await saveEventOne(ev2);
   closeModal('eventModal');
   renderEventMgmt();
 }
 
-function deleteEvent(id){
+async function deleteEvent(id){
   if(!confirm('Hapus event ini?')) return;
   EVENT_LIST=EVENT_LIST.filter(e=>e.id!==id);
-  saveEvent();
+  await fsDel(COL.events,id);
   renderEventMgmt();
 }
 
@@ -2676,13 +2937,13 @@ function startPosyanduAbsenGPS(posyanduId){
   );
 }
 
-function submitAbsenPosyandu(posyanduId, jam, metode, lokasi, status){
+async function submitAbsenPosyandu(posyanduId, jam, metode, lokasi, status){
   const today=todayKey();
   const existing=MANUAL_ABSEN.findIndex(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe==='posyandu'&&m.refId===posyanduId);
   const data={id:genId(),uid:STATE.user.id,tanggal:today,tipe:'posyandu',refId:posyanduId,jam,metode,lokasi,status,keterangan:''};
   if(existing>=0) MANUAL_ABSEN[existing]=data;
   else MANUAL_ABSEN.push(data);
-  saveManual();
+  await saveManualOne(data);
   renderBeranda();
   if(status==='approved') alert(`✅ Absen Posyandu berhasil — ${jam}`);
 }
@@ -2734,13 +2995,13 @@ function startEventAbsenGPS(eventId){
   );
 }
 
-function submitAbsenEvent(eventId, jam, metode, lokasi, status){
+async function submitAbsenEvent(eventId, jam, metode, lokasi, status){
   const today=todayKey();
   const existing=MANUAL_ABSEN.findIndex(m=>m.uid===STATE.user.id&&m.tanggal===today&&m.tipe==='event'&&m.refId===eventId);
   const data={id:genId(),uid:STATE.user.id,tanggal:today,tipe:'event',refId:eventId,jam,metode,lokasi,status,keterangan:''};
   if(existing>=0) MANUAL_ABSEN[existing]=data;
   else MANUAL_ABSEN.push(data);
-  saveManual();
+  await saveManualOne(data);
   renderBeranda();
   if(status==='approved') alert(`✅ Absen Event berhasil — ${jam}`);
 }
@@ -2760,7 +3021,7 @@ function openManualAbsen(tipe, refId, extra){
   document.getElementById('manualAbsenModal').classList.add('open');
 }
 
-function doSubmitManualAbsen(){
+async function doSubmitManualAbsen(){
   const ket=document.getElementById('manualKeterangan').value.trim();
   const alertEl=document.getElementById('manualAbsenAlert');
   if(!ket){alertEl.innerHTML=`<div class="alert alert-danger">Keterangan wajib diisi!</div>`;return;}
@@ -2772,7 +3033,7 @@ function doSubmitManualAbsen(){
   const data={id:genId(),uid:STATE.user.id,nama:STATE.user.nama,tanggal:today,tipe,refId,jam,metode:'manual',lokasi:ref.nama,status:'pending',keterangan:ket};
   if(existing>=0) MANUAL_ABSEN[existing]={...MANUAL_ABSEN[existing],...data,id:MANUAL_ABSEN[existing].id};
   else MANUAL_ABSEN.push(data);
-  saveManual();
+  await saveManualOne(data);
   closeModal('manualAbsenModal');
   renderBeranda();
   renderAdmin();
@@ -2820,10 +3081,10 @@ function openVerifikasi(id){
   document.getElementById('verifikasiModal').classList.add('open');
 }
 
-function doVerifikasiAbsen(approved){
+async function doVerifikasiAbsen(approved){
   const idx=MANUAL_ABSEN.findIndex(m=>m.id===_verifyId); if(idx<0)return;
   MANUAL_ABSEN[idx].status=approved?'approved':'rejected';
-  saveManual();
+  await saveManualOne(MANUAL_ABSEN[idx]);
   closeModal('verifikasiModal');
   renderAdmin();
   renderPendingVerif();
@@ -2873,7 +3134,7 @@ function openPengajuanModal(tipe){
   document.getElementById('pengajuanModal').classList.add('open');
 }
 
-function doSubmitPengajuan(){
+async function doSubmitPengajuan(){
   const alertEl = document.getElementById('pengajuanAlert');
   const ket = (document.getElementById('pjKeterangan')?.value||'').trim();
   if(!ket){alertEl.innerHTML=`<div class="alert alert-danger">Keterangan wajib diisi!</div>`;return;}
@@ -2904,7 +3165,7 @@ function doSubmitPengajuan(){
   }
 
   PENGAJUAN_LIST.push(data);
-  savePengajuan();
+  await savePengajuanOne(data);
   closeModal('pengajuanModal');
   alert('✅ Pengajuan berhasil dikirim! Menunggu persetujuan admin.');
 }
@@ -2943,19 +3204,20 @@ function renderPendingPengajuan(){
   }).join('');
 }
 
-function approveRejectPengajuan(id, approved){
+async function approveRejectPengajuan(id, approved){
   const idx = PENGAJUAN_LIST.findIndex(p=>p.id===id);
   if(idx<0) return;
   const p = PENGAJUAN_LIST[idx];
   PENGAJUAN_LIST[idx].status = approved ? 'approved' : 'rejected';
-  savePengajuan();
+  await savePengajuanOne(PENGAJUAN_LIST[idx]);
 
   if(approved){
     // Apply the pengajuan
     if(p.tipe==='jaga'){
       if(!JADWAL_JAGA.find(j=>j.uid===p.uid&&j.tanggal===p.tanggal)){
-        JADWAL_JAGA.push({id:genId(),uid:p.uid,tanggal:p.tanggal,jamMasuk:p.jamMasuk,jamSelesai:p.jamSelesai,absenMasuk:null,absenPulang:null});
-        saveJadwal();
+        const nj2={id:genId(),uid:p.uid,tanggal:p.tanggal,jamMasuk:p.jamMasuk,jamSelesai:p.jamSelesai,absenMasuk:null,absenPulang:null};
+        JADWAL_JAGA.push(nj2);
+        await saveJadwalOne(nj2);
       }
     } else if(p.tipe==='posyandu'){
       PENUGASAN_PY.push({id:genId(),uid:p.uid,posyanduId:p.refId,start:p.start,end:p.end});
@@ -2965,7 +3227,7 @@ function approveRejectPengajuan(id, approved){
       if(evIdx>=0){
         if(!EVENT_LIST[evIdx].petugas) EVENT_LIST[evIdx].petugas=[];
         if(!EVENT_LIST[evIdx].petugas.includes(p.uid)) EVENT_LIST[evIdx].petugas.push(p.uid);
-        saveEvent();
+        await saveEventOne(EVENT_LIST[evIdx]);
       }
     }
     alert(`✅ Pengajuan ${p.nama} disetujui!`);
@@ -2975,6 +3237,107 @@ function approveRejectPengajuan(id, approved){
   renderPendingPengajuan();
   renderAdmin();
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// GANTI PASSWORD
+// ═══════════════════════════════════════════════════════════
+function openGantiPasswordModal(){
+  document.getElementById('gpOld').value='';
+  document.getElementById('gpNew').value='';
+  document.getElementById('gpConfirm').value='';
+  document.getElementById('gantiPassAlert').innerHTML='';
+  document.getElementById('gantiPassModal').classList.add('open');
+}
+
+async function doGantiPasswordSendiri(){
+  const alertEl=document.getElementById('gantiPassAlert');
+  const oldPass=document.getElementById('gpOld').value;
+  const newPass=document.getElementById('gpNew').value;
+  const confirm=document.getElementById('gpConfirm').value;
+  const u=STATE.user;
+  if(!oldPass||!newPass||!confirm){
+    alertEl.innerHTML=`<div class="alert alert-danger">Semua field wajib diisi!</div>`;return;
+  }
+  if(oldPass!==u.pass){
+    alertEl.innerHTML=`<div class="alert alert-danger">Password lama tidak sesuai!</div>`;return;
+  }
+  if(newPass.length<4){
+    alertEl.innerHTML=`<div class="alert alert-danger">Password baru minimal 4 karakter!</div>`;return;
+  }
+  if(newPass!==confirm){
+    alertEl.innerHTML=`<div class="alert alert-danger">Konfirmasi password tidak cocok!</div>`;return;
+  }
+  const idx=USERS.findIndex(x=>x.id===u.id);
+  if(idx>=0){USERS[idx].pass=newPass; STATE.user.pass=newPass;}
+  await saveUser(USERS[idx]);
+  // Update Firebase Auth password too
+  const fbUser=auth.currentUser;
+  if(fbUser) await fbUser.updatePassword(newPass).catch(()=>{});
+  closeModal('gantiPassModal');
+  alert('✅ Password berhasil diubah!');
+}
+
+function openGantiPasswordAdminModal(){
+  // Only SA can access
+  if(!isSuperAdmin(STATE.user)) return;
+  document.getElementById('gpAdminNew').value='';
+  document.getElementById('gpAdminConfirm').value='';
+  document.getElementById('gantiPassAdminAlert').innerHTML='';
+  // Populate admin list (exclude self)
+  const sel=document.getElementById('gpAdminSelect');
+  sel.innerHTML='<option value="">— Pilih Admin —</option>';
+  USERS.filter(u=>u.isAdmin&&u.id!==STATE.user.id&&!isSuperAdmin(u)).forEach(u=>{
+    sel.innerHTML+=`<option value="${u.id}">${u.nama} (@${u.username})</option>`;
+  });
+  document.getElementById('gantiPassAdminModal').classList.add('open');
+}
+
+async function doGantiPasswordAdmin(){
+  const alertEl=document.getElementById('gantiPassAdminAlert');
+  const uid=document.getElementById('gpAdminSelect').value;
+  const newPass=document.getElementById('gpAdminNew').value;
+  const confirm=document.getElementById('gpAdminConfirm').value;
+  if(!uid){alertEl.innerHTML=`<div class="alert alert-danger">Pilih admin terlebih dahulu!</div>`;return;}
+  if(!newPass||!confirm){alertEl.innerHTML=`<div class="alert alert-danger">Password wajib diisi!</div>`;return;}
+  if(newPass.length<4){alertEl.innerHTML=`<div class="alert alert-danger">Password minimal 4 karakter!</div>`;return;}
+  if(newPass!==confirm){alertEl.innerHTML=`<div class="alert alert-danger">Konfirmasi password tidak cocok!</div>`;return;}
+  const idx=USERS.findIndex(x=>x.id===uid);
+  if(idx>=0) USERS[idx].pass=newPass;
+  await saveUser(USERS[idx]);
+  closeModal('gantiPassAdminModal');
+  const u=USERS.find(x=>x.id===uid);
+  alert(`✅ Password ${u?.nama||'admin'} berhasil diubah!`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP INIT — Clock + Firebase Auth State
+// ═══════════════════════════════════════════════════════════
+(function initApp(){
+  // Clock
+  renderClock();
+  setInterval(renderClock, 1000);
+
+  // Firebase Auth state listener — restore session automatically
+  auth.onAuthStateChanged(async(fbUser)=>{
+    if(!fbUser) return;
+    const emailParts = fbUser.email?.split('@');
+    const uname = (emailParts?.[1] === 'eabsensi.puskesmas.app') ? emailParts[0] : null;
+    if(!uname) return;
+    try{
+      const snap = await COL.users().where('username','==',uname).limit(1).get();
+      if(!snap.empty && !STATE.user){
+        const ud = snap.docs[0];
+        STATE.user = {id:ud.id, ...ud.data()};
+        showLoading('Memulihkan sesi...');
+        await loadAllData();
+        hideLoading();
+        afterLoginUI();
+      }
+    }catch(e){ hideLoading(); console.warn('Session restore failed:',e); }
+  });
+})();
+
 
 </script>
 </body>
